@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # set(CMAKE_CXX_COMPILER /usr/local/bin/g++)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -fsanitize=address -Wall")
 
+find_package (Threads)
+
 include_directories(include)
 
 
@@ -23,7 +25,7 @@ if (CMAKE_BUILD_TYPE MATCHES "[Dd][Ee][Bb][Uu][Gg]" OR FORCE_TESTS)
 endif()
 
 add_executable(Driver main.cpp)
-target_link_libraries(Driver database)
+target_link_libraries(Driver database ${CMAKE_THREAD_LIBS_INIT})
 
 # Interactive command line tool to translate our query format to SQL queries
 add_executable(Query2SQL Query2SQL.cpp)

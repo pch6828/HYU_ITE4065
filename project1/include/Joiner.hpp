@@ -1,24 +1,31 @@
 #pragma once
 #include <vector>
 #include <cstdint>
-#include <set>
+#include <unordered_map>
 #include "Operators.hpp"
 #include "Relation.hpp"
 #include "Parser.hpp"
 //---------------------------------------------------------------------------
-class Joiner {
-
+using Disjoint_Set_Element = struct
+{
+  unsigned root_id;
+  std::unique_ptr<Operator> tree;
+};
+using DisjointSet = std::unordered_map<unsigned, Disjoint_Set_Element>;
+//---------------------------------------------------------------------------
+class Joiner
+{
   /// Add scan to query
-  std::unique_ptr<Operator> addScan(std::set<unsigned>& usedRelations,SelectInfo& info,QueryInfo& query);
+  void addScan(DisjointSet &disjoint_set, SelectInfo &info, QueryInfo &query);
 
-  public:
+public:
   /// The relations that might be joined
   std::vector<Relation> relations;
   /// Add relation
-  void addRelation(const char* fileName);
+  void addRelation(const char *fileName);
   /// Get relation
-  Relation& getRelation(unsigned id);
+  Relation &getRelation(unsigned id);
   /// Joins a given set of relations
-  std::string join(QueryInfo& i);
+  std::string join(QueryInfo &i);
 };
 //---------------------------------------------------------------------------
