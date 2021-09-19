@@ -8,15 +8,48 @@
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
+// #define THREAD_CONTROL
+// preprocessor for control # of active thread
+// #define PRINT_THREAD
+// preprocessor to see thread's enter and exit
+//---------------------------------------------------------------------------
 int num_of_thread = 0;
 mutex mtx;
 condition_variable cv;
-
+//---------------------------------------------------------------------------
 template <typename Function>
 void *thread_func(void *arg)
+// function template of thread function
+// by using arg, which should be lambda function, it runs given function
+// then it returns given function's return value
 {
+#ifdef THREAD_CONTROL
+  unique_lock<mutex> enter_lock(mtx);
+  cv.wait(enter_lock, [&]
+          { return num_of_thread < 4; });
+  num_of_thread++;
+  enter_lock.unlock();
+  cv.notify_all();
+#endif
+#ifdef PRINT_THREAD
+  printf("Enter %ld, Active Thread : %d\n", pthread_self(), num_of_thread);
+#endif
+
   Function *f = (Function *)arg;
   void *ret = (void *)(*f)();
+
+#ifdef THREAD_CONTROL
+  unique_lock<mutex> exit_lock(mtx);
+  cv.wait(exit_lock, [&]
+          { return num_of_thread > 0; });
+  num_of_thread--;
+  exit_lock.unlock();
+  cv.notify_all();
+#endif
+#ifdef PRINT_THREAD
+  printf("Exit %ld, Active Thread : %d\n", pthread_self(), num_of_thread);
+#endif
+
   pthread_exit(ret);
 }
 //---------------------------------------------------------------------------
@@ -152,6 +185,8 @@ void Join::copy2Result(uint64_t leftId, uint64_t rightId)
 void Join::run()
 // Run
 {
+  // function for getting left input of join
+  // at now, I used original code for thread function
   auto run_left = [&]()
   {
     left->require(pInfo.left);
@@ -159,6 +194,8 @@ void Join::run()
     return nullptr;
   };
 
+  // function for getting right input of join
+  // at now, I used original code for thread function
   auto run_right = [&]()
   {
     right->require(pInfo.right);
@@ -166,6 +203,7 @@ void Join::run()
     return nullptr;
   };
 
+  // run each thread
   pthread_t left_thread, right_thread;
 
   if (pthread_create(&left_thread, NULL, thread_func<decltype(run_left)>, &run_left) < 0)
@@ -179,9 +217,37 @@ void Join::run()
     exit(-1);
   }
 
+#ifdef THREAD_CONTROL
+  unique_lock<mutex> wait_lock(mtx);
+  cv.wait(wait_lock, [&]
+          { return num_of_thread > 0; });
+  num_of_thread--;
+  wait_lock.unlock();
+  cv.notify_all();
+
+#ifdef PRINT_THREAD
+  // printf("Wait %ld, Active Thread : %d\n", pthread_self(), num_of_thread);
+#endif
+#endif
+
+  // wait for child threads
+  // it does not use return value.
   void *ret;
   pthread_join(left_thread, &ret);
   pthread_join(right_thread, &ret);
+
+#ifdef THREAD_CONTROL
+  unique_lock<mutex> reenter_lock(mtx);
+  cv.wait(reenter_lock, [&]
+          { return num_of_thread < 4; });
+  num_of_thread++;
+  reenter_lock.unlock();
+  cv.notify_all();
+
+#ifdef PRINT_THREAD
+  // printf("ReEnter %ld, Active Thread : %d\n", pthread_self(), num_of_thread);
+#endif
+#endif
 
   // Use smaller input for build
   if (left->resultSize > right->resultSize)
@@ -282,11 +348,34 @@ void SelfJoin::run()
 void Checksum::run()
 // Run
 {
-  for (auto &sInfo : colInfo)
+  // function for getting input of Checksum
+  // at now, I used original code for thread function
+  // Since Checksum has only one input, thread is not necessary.
+  // But I used thread for compatibility when using control of number of active thread
+  auto run_join = [&]()
   {
-    input->require(sInfo);
+    for (auto &sInfo : colInfo)
+    {
+      input->require(sInfo);
+    }
+    input->run();
+    return nullptr;
+  };
+
+  pthread_t join_thread;
+
+  // run child thread
+  if (pthread_create(&join_thread, NULL, thread_func<decltype(run_join)>, &run_join) < 0)
+  {
+    cerr << "[Error] Checksum failed" << endl;
+    exit(-1);
   }
-  input->run();
+
+  // wait for child threads
+  // it does not use return value.
+  void *ret;
+  pthread_join(join_thread, &ret);
+
   auto results = input->getResults();
 
   for (auto &sInfo : colInfo)

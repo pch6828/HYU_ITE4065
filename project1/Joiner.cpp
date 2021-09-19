@@ -114,16 +114,26 @@ enum QueryGraphProvides
 static QueryGraphProvides analyzeInputOfJoin(DisjointSet &disjoint_set, SelectInfo &leftInfo, SelectInfo &rightInfo)
 // Analyzes inputs of join
 {
+  // check left and right input are in the disjoint set
   bool usedLeft = disjoint_set.count(leftInfo.binding);
   bool usedRight = disjoint_set.count(rightInfo.binding);
 
+  // if one of inputs is not in the disjoint set
   if (usedLeft ^ usedRight)
+    // then it should be added to disjoint set
     return usedLeft ? QueryGraphProvides::AddScanRight : QueryGraphProvides::AddScanLeft;
+
+  // if all of inputs are not in the disjoint set
   if (!(usedLeft && usedRight))
+    // then these should be added to disjoint set
     return QueryGraphProvides::AddScanBoth;
 
+  // if disjoint set has all of inputs,
+  // check whether left and right are in the same join tree
   unsigned left_root = getRootOfJoinTree(disjoint_set, leftInfo.binding);
   unsigned right_root = getRootOfJoinTree(disjoint_set, rightInfo.binding);
+  // if root of left and right are same, these are in the same join tree already,
+  // if not, these should be connected.
   return left_root == right_root ? QueryGraphProvides::AlreadyConnected : QueryGraphProvides::NeedConnect;
 }
 //---------------------------------------------------------------------------
