@@ -63,6 +63,10 @@ vector
 /mnt/c/Users/pch68/2021_ite4065_2018008395/project1/main.cpp
 iostream
 -
+vector
+-
+pthread.h
+-
 Joiner.hpp
 /mnt/c/Users/pch68/2021_ite4065_2018008395/project1/Joiner.hpp
 Parser.hpp
