@@ -1,22 +1,23 @@
 Determining if the pthread_create exist failed with the following output:
 Change Dir: /mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_fd619/fast"
-/usr/bin/make -f CMakeFiles/cmTC_fd619.dir/build.make CMakeFiles/cmTC_fd619.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_51c1e/fast"
+/usr/bin/make -f CMakeFiles/cmTC_51c1e.dir/build.make CMakeFiles/cmTC_51c1e.dir/build
 make[1]: Entering directory '/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_fd619.dir/CheckSymbolExists.c.o
-/usr/bin/cc    -o CMakeFiles/cmTC_fd619.dir/CheckSymbolExists.c.o   -c /mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp/CheckSymbolExists.c
-Linking C executable cmTC_fd619
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_fd619.dir/link.txt --verbose=1
-/usr/bin/cc      -rdynamic CMakeFiles/cmTC_fd619.dir/CheckSymbolExists.c.o  -o cmTC_fd619 
-CMakeFiles/cmTC_fd619.dir/CheckSymbolExists.c.o: In function `main':
+make[1]: Warning: File 'CMakeFiles/cmTC_51c1e.dir/progress.make' has modification time 0.032 s in the future
+Building C object CMakeFiles/cmTC_51c1e.dir/CheckSymbolExists.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_51c1e.dir/CheckSymbolExists.c.o   -c /mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_51c1e
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_51c1e.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_51c1e.dir/CheckSymbolExists.c.o  -o cmTC_51c1e 
+CMakeFiles/cmTC_51c1e.dir/CheckSymbolExists.c.o: In function `main':
 CheckSymbolExists.c:(.text+0x1b): undefined reference to `pthread_create'
 collect2: error: ld returned 1 exit status
-CMakeFiles/cmTC_fd619.dir/build.make:97: recipe for target 'cmTC_fd619' failed
-make[1]: *** [cmTC_fd619] Error 1
+CMakeFiles/cmTC_51c1e.dir/build.make:97: recipe for target 'cmTC_51c1e' failed
+make[1]: *** [cmTC_51c1e] Error 1
 make[1]: Leaving directory '/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp'
-Makefile:126: recipe for target 'cmTC_fd619/fast' failed
-make: *** [cmTC_fd619/fast] Error 2
+Makefile:126: recipe for target 'cmTC_51c1e/fast' failed
+make: *** [cmTC_51c1e/fast] Error 2
 
 File /mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
 /* */
@@ -36,20 +37,22 @@ int main(int argc, char** argv)
 Determining if the function pthread_create exists in the pthreads failed with the following output:
 Change Dir: /mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_d5838/fast"
-/usr/bin/make -f CMakeFiles/cmTC_d5838.dir/build.make CMakeFiles/cmTC_d5838.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_497bb/fast"
+make: Warning: File 'Makefile' has modification time 0.0083 s in the future
+/usr/bin/make -f CMakeFiles/cmTC_497bb.dir/build.make CMakeFiles/cmTC_497bb.dir/build
 make[1]: Entering directory '/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_d5838.dir/CheckFunctionExists.c.o
-/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_d5838.dir/CheckFunctionExists.c.o   -c /usr/share/cmake-3.10/Modules/CheckFunctionExists.c
-Linking C executable cmTC_d5838
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d5838.dir/link.txt --verbose=1
-/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_d5838.dir/CheckFunctionExists.c.o  -o cmTC_d5838 -lpthreads 
+make[1]: Warning: File 'CMakeFiles/cmTC_497bb.dir/progress.make' has modification time 0.045 s in the future
+Building C object CMakeFiles/cmTC_497bb.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_497bb.dir/CheckFunctionExists.c.o   -c /usr/share/cmake-3.10/Modules/CheckFunctionExists.c
+Linking C executable cmTC_497bb
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_497bb.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_497bb.dir/CheckFunctionExists.c.o  -o cmTC_497bb -lpthreads 
 /usr/bin/ld: cannot find -lpthreads
 collect2: error: ld returned 1 exit status
-CMakeFiles/cmTC_d5838.dir/build.make:97: recipe for target 'cmTC_d5838' failed
-make[1]: *** [cmTC_d5838] Error 1
+CMakeFiles/cmTC_497bb.dir/build.make:97: recipe for target 'cmTC_497bb' failed
+make[1]: *** [cmTC_497bb] Error 1
 make[1]: Leaving directory '/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp'
-Makefile:126: recipe for target 'cmTC_d5838/fast' failed
-make: *** [cmTC_d5838/fast] Error 2
+Makefile:126: recipe for target 'cmTC_497bb/fast' failed
+make: *** [cmTC_497bb/fast] Error 2
 
 

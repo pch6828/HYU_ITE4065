@@ -1,8 +1,6 @@
 #include <Operators.hpp>
 #include <cassert>
 #include <iostream>
-#include <mutex>
-#include <condition_variable>
 #include <pthread.h>
 #include <stdio.h>
 //---------------------------------------------------------------------------
@@ -23,32 +21,8 @@ void *thread_func(void *arg)
 // by using arg, which should be lambda function, it runs given function
 // then it returns given function's return value
 {
-#ifdef THREAD_CONTROL
-  unique_lock<mutex> enter_lock(mtx);
-  cv.wait(enter_lock, [&]
-          { return num_of_thread < 4; });
-  num_of_thread++;
-  enter_lock.unlock();
-  cv.notify_all();
-#endif
-#ifdef PRINT_THREAD
-  printf("Enter %ld, Active Thread : %d\n", pthread_self(), num_of_thread);
-#endif
-
   Function *f = (Function *)arg;
   void *ret = (void *)(*f)();
-
-#ifdef THREAD_CONTROL
-  unique_lock<mutex> exit_lock(mtx);
-  cv.wait(exit_lock, [&]
-          { return num_of_thread > 0; });
-  num_of_thread--;
-  exit_lock.unlock();
-  cv.notify_all();
-#endif
-#ifdef PRINT_THREAD
-  printf("Exit %ld, Active Thread : %d\n", pthread_self(), num_of_thread);
-#endif
 
   pthread_exit(ret);
 }
@@ -217,37 +191,11 @@ void Join::run()
     exit(-1);
   }
 
-#ifdef THREAD_CONTROL
-  unique_lock<mutex> wait_lock(mtx);
-  cv.wait(wait_lock, [&]
-          { return num_of_thread > 0; });
-  num_of_thread--;
-  wait_lock.unlock();
-  cv.notify_all();
-
-#ifdef PRINT_THREAD
-  // printf("Wait %ld, Active Thread : %d\n", pthread_self(), num_of_thread);
-#endif
-#endif
-
   // wait for child threads
   // it does not use return value.
   void *ret;
   pthread_join(left_thread, &ret);
   pthread_join(right_thread, &ret);
-
-#ifdef THREAD_CONTROL
-  unique_lock<mutex> reenter_lock(mtx);
-  cv.wait(reenter_lock, [&]
-          { return num_of_thread < 4; });
-  num_of_thread++;
-  reenter_lock.unlock();
-  cv.notify_all();
-
-#ifdef PRINT_THREAD
-  // printf("ReEnter %ld, Active Thread : %d\n", pthread_self(), num_of_thread);
-#endif
-#endif
 
   // Use smaller input for build
   if (left->resultSize > right->resultSize)
@@ -321,9 +269,28 @@ bool SelfJoin::require(SelectInfo info)
 void SelfJoin::run()
 // Run
 {
-  input->require(pInfo.left);
-  input->require(pInfo.right);
-  input->run();
+  auto run_input = [&]()
+  {
+    input->require(pInfo.left);
+    input->require(pInfo.right);
+    input->run();
+    return nullptr;
+  };
+
+  pthread_t input_thread;
+
+  // run child thread
+  if (pthread_create(&input_thread, NULL, thread_func<decltype(run_input)>, &run_input) < 0)
+  {
+    cerr << "[Error] Checksum failed" << endl;
+    exit(-1);
+  }
+
+  // wait for child threads
+  // it does not use return value.
+  void *ret;
+  pthread_join(input_thread, &ret);
+
   inputData = input->getResults();
 
   for (auto &iu : requiredIUs)
@@ -352,7 +319,7 @@ void Checksum::run()
   // at now, I used original code for thread function
   // Since Checksum has only one input, thread is not necessary.
   // But I used thread for compatibility when using control of number of active thread
-  auto run_join = [&]()
+  auto run_input = [&]()
   {
     for (auto &sInfo : colInfo)
     {
@@ -362,10 +329,10 @@ void Checksum::run()
     return nullptr;
   };
 
-  pthread_t join_thread;
+  pthread_t input_thread;
 
   // run child thread
-  if (pthread_create(&join_thread, NULL, thread_func<decltype(run_join)>, &run_join) < 0)
+  if (pthread_create(&input_thread, NULL, thread_func<decltype(run_input)>, &run_input) < 0)
   {
     cerr << "[Error] Checksum failed" << endl;
     exit(-1);
@@ -374,7 +341,7 @@ void Checksum::run()
   // wait for child threads
   // it does not use return value.
   void *ret;
-  pthread_join(join_thread, &ret);
+  pthread_join(input_thread, &ret);
 
   auto results = input->getResults();
 

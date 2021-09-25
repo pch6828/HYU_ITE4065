@@ -7,6 +7,8 @@
 #include <unordered_set>
 #include <vector>
 #include <set>
+#include <mutex>
+#include <condition_variable>
 #include "Relation.hpp"
 #include "Parser.hpp"
 //---------------------------------------------------------------------------
