@@ -95,8 +95,11 @@ void FilterScan::copy2Result(uint64_t id)
   ++resultSize;
   ++flushSize;
 #ifdef PIPELINING
-  cv.notify_all();
   lock.unlock();
+  if (flushSize >= MIN_FLUSH_SIZE)
+  {
+    cv.notify_all();
+  }
 #endif
 }
 //---------------------------------------------------------------------------
@@ -208,8 +211,11 @@ void Join::copy2Result(uint64_t leftId, uint64_t rightId)
   ++resultSize;
   ++flushSize;
 #ifdef PIPELINING
-  cv.notify_all();
   lock.unlock();
+  if (flushSize >= MIN_FLUSH_SIZE)
+  {
+    cv.notify_all();
+  }
 #endif
 }
 //---------------------------------------------------------------------------
@@ -318,8 +324,11 @@ void SelfJoin::copy2Result(uint64_t id)
   ++resultSize;
   ++flushSize;
 #ifdef PIPELINING
-  cv.notify_all();
   lock.unlock();
+  if (flushSize >= MIN_FLUSH_SIZE)
+  {
+    cv.notify_all();
+  }
 #endif
 }
 //---------------------------------------------------------------------------
