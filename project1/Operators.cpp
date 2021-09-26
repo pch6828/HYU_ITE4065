@@ -80,6 +80,7 @@ void FilterScan::copy2Result(uint64_t id)
   for (unsigned cId = 0; cId < inputData.size(); ++cId)
     tmpResults[buffer_idx][cId].push_back(inputData[cId][id]);
   ++resultSize;
+  ++flushSize;
   cv.notify_all();
   lock.unlock();
 }
@@ -122,26 +123,30 @@ vector<uint64_t *> Operator::getResults()
 // Get materialized results
 {
   unique_lock<mutex> lock(mtx);
+
   cv.wait(lock, [this]
-          { return this->process_finished || resultSize >= FLUSH_SIZE; });
-  vector<uint64_t *> resultVector;
-  uint64_t column_cnt = 0;
-  for (auto &c : tmpResults[buffer_idx])
-  {
-    resultVector.push_back(c.data());
-    column_cnt++;
-  }
-  flush_finished = process_finished;
-  nowResultSize = resultSize;
+          { return this->process_finished || flushSize >= MIN_FLUSH_SIZE; });
+
+  uint64_t flush_idx = buffer_idx;
   buffer_idx++;
   buffer_idx %= 2;
+
+  flush_finished = process_finished;
+  nowResultSize = resultSize;
+  flushSize = 0;
   tmpResults[buffer_idx].clear();
-  for (uint64_t i = 0; i < column_cnt; i++)
+  for (uint64_t i = 0; i < tmpResults[flush_idx].size(); i++)
   {
     tmpResults[buffer_idx].emplace_back();
   }
   lock.unlock();
   cv.notify_all();
+
+  vector<uint64_t *> resultVector;
+  for (auto &c : tmpResults[flush_idx])
+  {
+    resultVector.push_back(c.data());
+  }
   return resultVector;
 }
 //---------------------------------------------------------------------------
@@ -182,6 +187,7 @@ void Join::copy2Result(uint64_t leftId, uint64_t rightId)
   for (unsigned cId = 0; cId < copyRightData.size(); ++cId)
     tmpResults[buffer_idx][relColId++].push_back(copyRightData[cId][rightId]);
   ++resultSize;
+  ++flushSize;
   cv.notify_all();
   lock.unlock();
 }
@@ -285,6 +291,7 @@ void SelfJoin::copy2Result(uint64_t id)
     tmpResults[buffer_idx][cId].push_back(copyData[cId][id]);
   }
   ++resultSize;
+  ++flushSize;
   cv.notify_all();
   lock.unlock();
 }

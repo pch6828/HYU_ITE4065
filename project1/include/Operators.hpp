@@ -12,7 +12,7 @@
 #include "Relation.hpp"
 #include "Parser.hpp"
 //---------------------------------------------------------------------------
-#define FLUSH_SIZE 100
+#define MIN_FLUSH_SIZE 10
 //---------------------------------------------------------------------------
 namespace std
 {
@@ -39,6 +39,7 @@ protected:
   std::condition_variable cv;
   bool process_finished = false;
   int buffer_idx = 0;
+  uint64_t flushSize = 0;
 
 public:
   /// Require a column and add it to results
