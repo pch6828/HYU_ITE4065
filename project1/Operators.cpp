@@ -6,6 +6,8 @@
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
+// #define PIPELINING
+//---------------------------------------------------------------------------
 template <typename Function>
 void *thread_func(void *arg)
 // function template of thread function
@@ -33,25 +35,34 @@ void Scan::run()
 // Run
 {
   // Nothing to do
+#ifdef PIPELINING
   unique_lock<mutex> lock(mtx);
   cv.wait(lock, [this]
           { return !(this->process_finished); });
+#endif
   resultSize = relation.size;
   process_finished = true;
+
+#ifdef PIPELINING
   lock.unlock();
   cv.notify_all();
+#endif
 }
 //---------------------------------------------------------------------------
 vector<uint64_t *> Scan::getResults()
 // Get materialized results
 {
+#ifdef PIPELINING
   unique_lock<mutex> lock(mtx);
   cv.wait(lock, [this]
           { return (this->process_finished); });
+#endif
   flush_finished = process_finished;
   nowResultSize = resultSize;
+#ifdef PIPELINING
   lock.unlock();
   cv.notify_all();
+#endif
   return resultColumns;
 }
 //---------------------------------------------------------------------------
@@ -76,13 +87,17 @@ bool FilterScan::require(SelectInfo info)
 void FilterScan::copy2Result(uint64_t id)
 // Copy to result
 {
+#ifdef PIPELINING
   unique_lock<mutex> lock(mtx);
+#endif
   for (unsigned cId = 0; cId < inputData.size(); ++cId)
     tmpResults[buffer_idx][cId].push_back(inputData[cId][id]);
   ++resultSize;
   ++flushSize;
+#ifdef PIPELINING
   cv.notify_all();
   lock.unlock();
+#endif
 }
 //---------------------------------------------------------------------------
 bool FilterScan::applyFilter(uint64_t i, FilterInfo &f)
@@ -116,18 +131,20 @@ void FilterScan::run()
       copy2Result(i);
   }
   process_finished = true;
+#ifdef PIPELINING
   cv.notify_all();
+#endif
 }
 //---------------------------------------------------------------------------
 vector<uint64_t *> Operator::getResults()
 // Get materialized results
 {
+  uint64_t flush_idx = buffer_idx;
+#ifdef PIPELINING
   unique_lock<mutex> lock(mtx);
-
   cv.wait(lock, [this]
           { return this->process_finished || flushSize >= MIN_FLUSH_SIZE; });
 
-  uint64_t flush_idx = buffer_idx;
   buffer_idx++;
   buffer_idx %= 2;
 
@@ -141,7 +158,7 @@ vector<uint64_t *> Operator::getResults()
   }
   lock.unlock();
   cv.notify_all();
-
+#endif
   vector<uint64_t *> resultVector;
   for (auto &c : tmpResults[flush_idx])
   {
@@ -179,7 +196,9 @@ bool Join::require(SelectInfo info)
 void Join::copy2Result(uint64_t leftId, uint64_t rightId)
 // Copy to result
 {
+#ifdef PIPELINING
   unique_lock<mutex> lock(mtx);
+#endif
   unsigned relColId = 0;
   for (unsigned cId = 0; cId < copyLeftData.size(); ++cId)
     tmpResults[buffer_idx][relColId++].push_back(copyLeftData[cId][leftId]);
@@ -188,8 +207,10 @@ void Join::copy2Result(uint64_t leftId, uint64_t rightId)
     tmpResults[buffer_idx][relColId++].push_back(copyRightData[cId][rightId]);
   ++resultSize;
   ++flushSize;
+#ifdef PIPELINING
   cv.notify_all();
   lock.unlock();
+#endif
 }
 //---------------------------------------------------------------------------
 void Join::run()
@@ -279,21 +300,27 @@ void Join::run()
     }
   }
   process_finished = true;
+#ifdef PIPELINING
   cv.notify_all();
+#endif
 }
 //---------------------------------------------------------------------------
 void SelfJoin::copy2Result(uint64_t id)
 // Copy to result
 {
+#ifdef PIPELINING
   unique_lock<mutex> lock(mtx);
+#endif
   for (unsigned cId = 0; cId < copyData.size(); ++cId)
   {
     tmpResults[buffer_idx][cId].push_back(copyData[cId][id]);
   }
   ++resultSize;
   ++flushSize;
+#ifdef PIPELINING
   cv.notify_all();
   lock.unlock();
+#endif
 }
 //---------------------------------------------------------------------------
 bool SelfJoin::require(SelectInfo info)
@@ -330,7 +357,38 @@ void SelfJoin::run()
     cerr << "[Error] SelfJoin failed" << endl;
     exit(-1);
   }
+#ifndef PIPELINING
+  // wait for child threads
+  // it does not use return value.
+  void *ret;
+  pthread_join(input_thread, &ret);
 
+  inputData = input->getResults();
+
+  for (auto &iu : requiredIUs)
+  {
+    auto id = input->resolve(iu);
+    copyData.push_back(inputData[id]);
+    select2ResultColId.emplace(iu, copyData.size() - 1);
+  }
+
+  auto leftColId = input->resolve(pInfo.left);
+  auto rightColId = input->resolve(pInfo.right);
+
+  auto leftCol = inputData[leftColId];
+  auto rightCol = inputData[rightColId];
+  for (uint64_t i = 0; i < input->resultSize; ++i)
+  {
+    if (leftCol[i] == rightCol[i])
+    {
+      copy2Result(i);
+    }
+  }
+
+  process_finished = true;
+#endif
+
+#ifdef PIPELINING
   uint64_t prevResultSize = 0;
   while (!(input->flush_finished))
   {
@@ -361,12 +419,10 @@ void SelfJoin::run()
     }
     prevResultSize = input->nowResultSize;
   }
-  // wait for child threads
-  // it does not use return value.
-  void *ret;
-  pthread_join(input_thread, &ret);
+
   process_finished = true;
   cv.notify_all();
+#endif
 }
 //---------------------------------------------------------------------------
 void Checksum::run()
