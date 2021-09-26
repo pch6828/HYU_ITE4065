@@ -32,7 +32,11 @@ protected:
   /// The materialized results
   std::vector<uint64_t *> resultColumns;
   /// The tmp results
-  std::vector<std::vector<uint64_t>> tmpResults;
+  std::vector<std::vector<uint64_t>> tmpResults[2];
+  std::mutex mtx;
+  std::condition_variable cv;
+  bool process_finished = false;
+  int buffer_idx = 0;
 
 public:
   /// Require a column and add it to results
@@ -49,6 +53,8 @@ public:
   virtual std::vector<uint64_t *> getResults();
   /// The result size
   uint64_t resultSize = 0;
+  uint64_t nowResultSize = 0;
+  bool flush_finished = false;
   /// The destructor
   virtual ~Operator(){};
 };

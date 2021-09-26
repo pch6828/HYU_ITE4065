@@ -6,15 +6,6 @@
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
-// #define THREAD_CONTROL
-// preprocessor for control # of active thread
-// #define PRINT_THREAD
-// preprocessor to see thread's enter and exit
-//---------------------------------------------------------------------------
-int num_of_thread = 0;
-mutex mtx;
-condition_variable cv;
-//---------------------------------------------------------------------------
 template <typename Function>
 void *thread_func(void *arg)
 // function template of thread function
@@ -42,12 +33,25 @@ void Scan::run()
 // Run
 {
   // Nothing to do
+  unique_lock<mutex> lock(mtx);
+  cv.wait(lock, [this]
+          { return !(this->process_finished); });
   resultSize = relation.size;
+  process_finished = true;
+  lock.unlock();
+  cv.notify_all();
 }
 //---------------------------------------------------------------------------
 vector<uint64_t *> Scan::getResults()
 // Get materialized results
 {
+  unique_lock<mutex> lock(mtx);
+  cv.wait(lock, [this]
+          { return (this->process_finished); });
+  flush_finished = process_finished;
+  nowResultSize = resultSize;
+  lock.unlock();
+  cv.notify_all();
   return resultColumns;
 }
 //---------------------------------------------------------------------------
@@ -61,8 +65,9 @@ bool FilterScan::require(SelectInfo info)
   {
     // Add to results
     inputData.push_back(relation.columns[info.colId]);
-    tmpResults.emplace_back();
-    unsigned colId = tmpResults.size() - 1;
+    tmpResults[0].emplace_back();
+    tmpResults[1].emplace_back();
+    unsigned colId = tmpResults[0].size() - 1;
     select2ResultColId[info] = colId;
   }
   return true;
@@ -71,9 +76,11 @@ bool FilterScan::require(SelectInfo info)
 void FilterScan::copy2Result(uint64_t id)
 // Copy to result
 {
+  mtx.lock();
   for (unsigned cId = 0; cId < inputData.size(); ++cId)
-    tmpResults[cId].push_back(inputData[cId][id]);
+    tmpResults[buffer_idx][cId].push_back(inputData[cId][id]);
   ++resultSize;
+  mtx.unlock();
 }
 //---------------------------------------------------------------------------
 bool FilterScan::applyFilter(uint64_t i, FilterInfo &f)
@@ -106,16 +113,30 @@ void FilterScan::run()
     if (pass)
       copy2Result(i);
   }
+  process_finished = true;
 }
 //---------------------------------------------------------------------------
 vector<uint64_t *> Operator::getResults()
 // Get materialized results
 {
+  mtx.lock();
   vector<uint64_t *> resultVector;
-  for (auto &c : tmpResults)
+  uint64_t column_cnt = 0;
+  for (auto &c : tmpResults[buffer_idx])
   {
     resultVector.push_back(c.data());
+    column_cnt++;
   }
+  flush_finished = process_finished;
+  nowResultSize = resultSize;
+  buffer_idx++;
+  buffer_idx %= 2;
+  tmpResults[buffer_idx].clear();
+  for (uint64_t i = 0; i < column_cnt; i++)
+  {
+    tmpResults[buffer_idx].emplace_back();
+  }
+  mtx.unlock();
   return resultVector;
 }
 //---------------------------------------------------------------------------
@@ -138,7 +159,8 @@ bool Join::require(SelectInfo info)
     if (!success)
       return false;
 
-    tmpResults.emplace_back();
+    tmpResults[0].emplace_back();
+    tmpResults[1].emplace_back();
     requestedColumns.emplace(info);
   }
   return true;
@@ -147,13 +169,15 @@ bool Join::require(SelectInfo info)
 void Join::copy2Result(uint64_t leftId, uint64_t rightId)
 // Copy to result
 {
+  mtx.lock();
   unsigned relColId = 0;
   for (unsigned cId = 0; cId < copyLeftData.size(); ++cId)
-    tmpResults[relColId++].push_back(copyLeftData[cId][leftId]);
+    tmpResults[buffer_idx][relColId++].push_back(copyLeftData[cId][leftId]);
 
   for (unsigned cId = 0; cId < copyRightData.size(); ++cId)
-    tmpResults[relColId++].push_back(copyRightData[cId][rightId]);
+    tmpResults[buffer_idx][relColId++].push_back(copyRightData[cId][rightId]);
   ++resultSize;
+  mtx.unlock();
 }
 //---------------------------------------------------------------------------
 void Join::run()
@@ -242,14 +266,19 @@ void Join::run()
       copy2Result(iter->second, i);
     }
   }
+  process_finished = true;
 }
 //---------------------------------------------------------------------------
 void SelfJoin::copy2Result(uint64_t id)
 // Copy to result
 {
+  mtx.lock();
   for (unsigned cId = 0; cId < copyData.size(); ++cId)
-    tmpResults[cId].push_back(copyData[cId][id]);
+  {
+    tmpResults[buffer_idx][cId].push_back(copyData[cId][id]);
+  }
   ++resultSize;
+  mtx.unlock();
 }
 //---------------------------------------------------------------------------
 bool SelfJoin::require(SelectInfo info)
@@ -259,7 +288,8 @@ bool SelfJoin::require(SelectInfo info)
     return true;
   if (input->require(info))
   {
-    tmpResults.emplace_back();
+    tmpResults[0].emplace_back();
+    tmpResults[1].emplace_back();
     requiredIUs.emplace(info);
     return true;
   }
@@ -269,10 +299,10 @@ bool SelfJoin::require(SelectInfo info)
 void SelfJoin::run()
 // Run
 {
+  input->require(pInfo.left);
+  input->require(pInfo.right);
   auto run_input = [&]()
   {
-    input->require(pInfo.left);
-    input->require(pInfo.right);
     input->run();
     return nullptr;
   };
@@ -282,34 +312,45 @@ void SelfJoin::run()
   // run child thread
   if (pthread_create(&input_thread, NULL, thread_func<decltype(run_input)>, &run_input) < 0)
   {
-    cerr << "[Error] Checksum failed" << endl;
+    cerr << "[Error] SelfJoin failed" << endl;
     exit(-1);
   }
 
+  uint64_t prevResultSize = 0;
+  while (!(input->flush_finished))
+  {
+    inputData = input->getResults();
+    if (input->nowResultSize == 0)
+    {
+      continue;
+    }
+    copyData.clear();
+    for (auto &iu : requiredIUs)
+    {
+      auto id = input->resolve(iu);
+      copyData.push_back(inputData[id]);
+      select2ResultColId.emplace(iu, copyData.size() - 1);
+    }
+
+    auto leftColId = input->resolve(pInfo.left);
+    auto rightColId = input->resolve(pInfo.right);
+
+    auto leftCol = inputData[leftColId];
+    auto rightCol = inputData[rightColId];
+    for (uint64_t i = 0; i < input->nowResultSize - prevResultSize; ++i)
+    {
+      if (leftCol[i] == rightCol[i])
+      {
+        copy2Result(i);
+      }
+    }
+    prevResultSize = input->nowResultSize;
+  }
   // wait for child threads
   // it does not use return value.
   void *ret;
   pthread_join(input_thread, &ret);
-
-  inputData = input->getResults();
-
-  for (auto &iu : requiredIUs)
-  {
-    auto id = input->resolve(iu);
-    copyData.emplace_back(inputData[id]);
-    select2ResultColId.emplace(iu, copyData.size() - 1);
-  }
-
-  auto leftColId = input->resolve(pInfo.left);
-  auto rightColId = input->resolve(pInfo.right);
-
-  auto leftCol = inputData[leftColId];
-  auto rightCol = inputData[rightColId];
-  for (uint64_t i = 0; i < input->resultSize; ++i)
-  {
-    if (leftCol[i] == rightCol[i])
-      copy2Result(i);
-  }
+  process_finished = true;
 }
 //---------------------------------------------------------------------------
 void Checksum::run()
@@ -356,4 +397,5 @@ void Checksum::run()
     checkSums.push_back(sum);
   }
 }
+
 //---------------------------------------------------------------------------
