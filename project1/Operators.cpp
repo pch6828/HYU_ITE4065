@@ -76,11 +76,12 @@ bool FilterScan::require(SelectInfo info)
 void FilterScan::copy2Result(uint64_t id)
 // Copy to result
 {
-  mtx.lock();
+  unique_lock<mutex> lock(mtx);
   for (unsigned cId = 0; cId < inputData.size(); ++cId)
     tmpResults[buffer_idx][cId].push_back(inputData[cId][id]);
   ++resultSize;
-  mtx.unlock();
+  cv.notify_all();
+  lock.unlock();
 }
 //---------------------------------------------------------------------------
 bool FilterScan::applyFilter(uint64_t i, FilterInfo &f)
@@ -114,12 +115,15 @@ void FilterScan::run()
       copy2Result(i);
   }
   process_finished = true;
+  cv.notify_all();
 }
 //---------------------------------------------------------------------------
 vector<uint64_t *> Operator::getResults()
 // Get materialized results
 {
-  mtx.lock();
+  unique_lock<mutex> lock(mtx);
+  cv.wait(lock, [this]
+          { return this->process_finished || resultSize >= FLUSH_SIZE; });
   vector<uint64_t *> resultVector;
   uint64_t column_cnt = 0;
   for (auto &c : tmpResults[buffer_idx])
@@ -136,7 +140,8 @@ vector<uint64_t *> Operator::getResults()
   {
     tmpResults[buffer_idx].emplace_back();
   }
-  mtx.unlock();
+  lock.unlock();
+  cv.notify_all();
   return resultVector;
 }
 //---------------------------------------------------------------------------
@@ -169,7 +174,7 @@ bool Join::require(SelectInfo info)
 void Join::copy2Result(uint64_t leftId, uint64_t rightId)
 // Copy to result
 {
-  mtx.lock();
+  unique_lock<mutex> lock(mtx);
   unsigned relColId = 0;
   for (unsigned cId = 0; cId < copyLeftData.size(); ++cId)
     tmpResults[buffer_idx][relColId++].push_back(copyLeftData[cId][leftId]);
@@ -177,7 +182,8 @@ void Join::copy2Result(uint64_t leftId, uint64_t rightId)
   for (unsigned cId = 0; cId < copyRightData.size(); ++cId)
     tmpResults[buffer_idx][relColId++].push_back(copyRightData[cId][rightId]);
   ++resultSize;
-  mtx.unlock();
+  cv.notify_all();
+  lock.unlock();
 }
 //---------------------------------------------------------------------------
 void Join::run()
@@ -267,18 +273,20 @@ void Join::run()
     }
   }
   process_finished = true;
+  cv.notify_all();
 }
 //---------------------------------------------------------------------------
 void SelfJoin::copy2Result(uint64_t id)
 // Copy to result
 {
-  mtx.lock();
+  unique_lock<mutex> lock(mtx);
   for (unsigned cId = 0; cId < copyData.size(); ++cId)
   {
     tmpResults[buffer_idx][cId].push_back(copyData[cId][id]);
   }
   ++resultSize;
-  mtx.unlock();
+  cv.notify_all();
+  lock.unlock();
 }
 //---------------------------------------------------------------------------
 bool SelfJoin::require(SelectInfo info)
@@ -351,6 +359,7 @@ void SelfJoin::run()
   void *ret;
   pthread_join(input_thread, &ret);
   process_finished = true;
+  cv.notify_all();
 }
 //---------------------------------------------------------------------------
 void Checksum::run()

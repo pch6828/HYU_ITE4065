@@ -12,6 +12,8 @@
 #include "Relation.hpp"
 #include "Parser.hpp"
 //---------------------------------------------------------------------------
+#define FLUSH_SIZE 100
+//---------------------------------------------------------------------------
 namespace std
 {
   /// Simple hash function to enable use with unordered_map
