@@ -36,6 +36,17 @@ void Scan::run()
 {
   // Nothing to do
   resultSize = relation.size;
+
+  for (uint64_t i = 0; i < resultSize; i++)
+  {
+    for (auto &iter : partitions)
+    {
+      const SelectInfo &info = iter.first;
+      Partition &partition = iter.second;
+      uint64_t colValue = resultColumns[select2ResultColId[info]][i];
+      partition[colValue].push_back(i);
+    }
+  }
 }
 //---------------------------------------------------------------------------
 vector<uint64_t *> Scan::getResults()
@@ -66,6 +77,13 @@ void FilterScan::copy2Result(uint64_t id)
 {
   for (unsigned cId = 0; cId < inputData.size(); ++cId)
     tmpResults[cId].push_back(inputData[cId][id]);
+  for (auto &iter : partitions)
+  {
+    const SelectInfo &info = iter.first;
+    Partition &partition = iter.second;
+    uint64_t colValue = tmpResults[select2ResultColId[info]][resultSize];
+    partition[colValue].push_back(resultSize);
+  }
   ++resultSize;
 }
 //---------------------------------------------------------------------------
@@ -146,6 +164,13 @@ void Join::copy2Result(uint64_t leftId, uint64_t rightId)
 
   for (unsigned cId = 0; cId < copyRightData.size(); ++cId)
     tmpResults[relColId++].push_back(copyRightData[cId][rightId]);
+  for (auto &iter : partitions)
+  {
+    const SelectInfo &info = iter.first;
+    Partition &partition = iter.second;
+    uint64_t colValue = tmpResults[select2ResultColId[info]][resultSize];
+    partition[colValue].push_back(resultSize);
+  }
   ++resultSize;
 }
 //---------------------------------------------------------------------------
@@ -156,7 +181,6 @@ void Join::run()
   // at now, I used original code for thread function
   auto run_left = [&]()
   {
-    left->require(pInfo.left);
     left->run();
     return nullptr;
   };
@@ -165,11 +189,14 @@ void Join::run()
   // at now, I used original code for thread function
   auto run_right = [&]()
   {
-    right->require(pInfo.right);
     right->run();
     return nullptr;
   };
 
+  left->require(pInfo.left);
+  right->require(pInfo.right);
+  left->requirePartition(pInfo.left);
+  right->requirePartition(pInfo.right);
   // run each thread
   pthread_t left_thread, right_thread;
 
@@ -242,6 +269,13 @@ void SelfJoin::copy2Result(uint64_t id)
 {
   for (unsigned cId = 0; cId < copyData.size(); ++cId)
     tmpResults[cId].push_back(copyData[cId][id]);
+  for (auto &iter : partitions)
+  {
+    const SelectInfo &info = iter.first;
+    Partition &partition = iter.second;
+    uint64_t colValue = tmpResults[select2ResultColId[info]][resultSize];
+    partition[colValue].push_back(resultSize);
+  }
   ++resultSize;
 }
 //---------------------------------------------------------------------------
@@ -264,6 +298,8 @@ void SelfJoin::run()
 {
   input->require(pInfo.left);
   input->require(pInfo.right);
+  input->requirePartition(pInfo.left);
+  input->requirePartition(pInfo.right);
   input->run();
   inputData = input->getResults();
 
