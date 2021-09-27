@@ -1,12 +1,12 @@
 #include <Operators.hpp>
 #include <cassert>
 #include <iostream>
+#include <mutex>
+#include <condition_variable>
 #include <pthread.h>
 #include <stdio.h>
 //---------------------------------------------------------------------------
 using namespace std;
-//---------------------------------------------------------------------------
-// #define PIPELINING
 //---------------------------------------------------------------------------
 template <typename Function>
 void *thread_func(void *arg)
@@ -35,34 +35,12 @@ void Scan::run()
 // Run
 {
   // Nothing to do
-#ifdef PIPELINING
-  unique_lock<mutex> lock(mtx);
-  cv.wait(lock, [this]
-          { return !(this->process_finished); });
-#endif
   resultSize = relation.size;
-  process_finished = true;
-
-#ifdef PIPELINING
-  lock.unlock();
-  cv.notify_all();
-#endif
 }
 //---------------------------------------------------------------------------
 vector<uint64_t *> Scan::getResults()
 // Get materialized results
 {
-#ifdef PIPELINING
-  unique_lock<mutex> lock(mtx);
-  cv.wait(lock, [this]
-          { return (this->process_finished); });
-#endif
-  flush_finished = process_finished;
-  nowResultSize = resultSize;
-#ifdef PIPELINING
-  lock.unlock();
-  cv.notify_all();
-#endif
   return resultColumns;
 }
 //---------------------------------------------------------------------------
@@ -76,9 +54,8 @@ bool FilterScan::require(SelectInfo info)
   {
     // Add to results
     inputData.push_back(relation.columns[info.colId]);
-    tmpResults[0].emplace_back();
-    tmpResults[1].emplace_back();
-    unsigned colId = tmpResults[0].size() - 1;
+    tmpResults.emplace_back();
+    unsigned colId = tmpResults.size() - 1;
     select2ResultColId[info] = colId;
   }
   return true;
@@ -87,20 +64,9 @@ bool FilterScan::require(SelectInfo info)
 void FilterScan::copy2Result(uint64_t id)
 // Copy to result
 {
-#ifdef PIPELINING
-  unique_lock<mutex> lock(mtx);
-#endif
   for (unsigned cId = 0; cId < inputData.size(); ++cId)
-    tmpResults[buffer_idx][cId].push_back(inputData[cId][id]);
+    tmpResults[cId].push_back(inputData[cId][id]);
   ++resultSize;
-  ++flushSize;
-#ifdef PIPELINING
-  lock.unlock();
-  if (flushSize >= MIN_FLUSH_SIZE)
-  {
-    cv.notify_all();
-  }
-#endif
 }
 //---------------------------------------------------------------------------
 bool FilterScan::applyFilter(uint64_t i, FilterInfo &f)
@@ -133,37 +99,13 @@ void FilterScan::run()
     if (pass)
       copy2Result(i);
   }
-  process_finished = true;
-#ifdef PIPELINING
-  cv.notify_all();
-#endif
 }
 //---------------------------------------------------------------------------
 vector<uint64_t *> Operator::getResults()
 // Get materialized results
 {
-  uint64_t flush_idx = buffer_idx;
-#ifdef PIPELINING
-  unique_lock<mutex> lock(mtx);
-  cv.wait(lock, [this]
-          { return this->process_finished || flushSize >= MIN_FLUSH_SIZE; });
-
-  buffer_idx++;
-  buffer_idx %= 2;
-
-  flush_finished = process_finished;
-  nowResultSize = resultSize;
-  flushSize = 0;
-  tmpResults[buffer_idx].clear();
-  for (uint64_t i = 0; i < tmpResults[flush_idx].size(); i++)
-  {
-    tmpResults[buffer_idx].emplace_back();
-  }
-  lock.unlock();
-  cv.notify_all();
-#endif
   vector<uint64_t *> resultVector;
-  for (auto &c : tmpResults[flush_idx])
+  for (auto &c : tmpResults)
   {
     resultVector.push_back(c.data());
   }
@@ -189,8 +131,7 @@ bool Join::require(SelectInfo info)
     if (!success)
       return false;
 
-    tmpResults[0].emplace_back();
-    tmpResults[1].emplace_back();
+    tmpResults.emplace_back();
     requestedColumns.emplace(info);
   }
   return true;
@@ -199,24 +140,13 @@ bool Join::require(SelectInfo info)
 void Join::copy2Result(uint64_t leftId, uint64_t rightId)
 // Copy to result
 {
-#ifdef PIPELINING
-  unique_lock<mutex> lock(mtx);
-#endif
   unsigned relColId = 0;
   for (unsigned cId = 0; cId < copyLeftData.size(); ++cId)
-    tmpResults[buffer_idx][relColId++].push_back(copyLeftData[cId][leftId]);
+    tmpResults[relColId++].push_back(copyLeftData[cId][leftId]);
 
   for (unsigned cId = 0; cId < copyRightData.size(); ++cId)
-    tmpResults[buffer_idx][relColId++].push_back(copyRightData[cId][rightId]);
+    tmpResults[relColId++].push_back(copyRightData[cId][rightId]);
   ++resultSize;
-  ++flushSize;
-#ifdef PIPELINING
-  lock.unlock();
-  if (flushSize >= MIN_FLUSH_SIZE)
-  {
-    cv.notify_all();
-  }
-#endif
 }
 //---------------------------------------------------------------------------
 void Join::run()
@@ -305,31 +235,14 @@ void Join::run()
       copy2Result(iter->second, i);
     }
   }
-  process_finished = true;
-#ifdef PIPELINING
-  cv.notify_all();
-#endif
 }
 //---------------------------------------------------------------------------
 void SelfJoin::copy2Result(uint64_t id)
 // Copy to result
 {
-#ifdef PIPELINING
-  unique_lock<mutex> lock(mtx);
-#endif
   for (unsigned cId = 0; cId < copyData.size(); ++cId)
-  {
-    tmpResults[buffer_idx][cId].push_back(copyData[cId][id]);
-  }
+    tmpResults[cId].push_back(copyData[cId][id]);
   ++resultSize;
-  ++flushSize;
-#ifdef PIPELINING
-  lock.unlock();
-  if (flushSize >= MIN_FLUSH_SIZE)
-  {
-    cv.notify_all();
-  }
-#endif
 }
 //---------------------------------------------------------------------------
 bool SelfJoin::require(SelectInfo info)
@@ -339,8 +252,7 @@ bool SelfJoin::require(SelectInfo info)
     return true;
   if (input->require(info))
   {
-    tmpResults[0].emplace_back();
-    tmpResults[1].emplace_back();
+    tmpResults.emplace_back();
     requiredIUs.emplace(info);
     return true;
   }
@@ -352,32 +264,13 @@ void SelfJoin::run()
 {
   input->require(pInfo.left);
   input->require(pInfo.right);
-  auto run_input = [&]()
-  {
-    input->run();
-    return nullptr;
-  };
-
-  pthread_t input_thread;
-
-  // run child thread
-  if (pthread_create(&input_thread, NULL, thread_func<decltype(run_input)>, &run_input) < 0)
-  {
-    cerr << "[Error] SelfJoin failed" << endl;
-    exit(-1);
-  }
-#ifndef PIPELINING
-  // wait for child threads
-  // it does not use return value.
-  void *ret;
-  pthread_join(input_thread, &ret);
-
+  input->run();
   inputData = input->getResults();
 
   for (auto &iu : requiredIUs)
   {
     auto id = input->resolve(iu);
-    copyData.push_back(inputData[id]);
+    copyData.emplace_back(inputData[id]);
     select2ResultColId.emplace(iu, copyData.size() - 1);
   }
 
@@ -389,81 +282,18 @@ void SelfJoin::run()
   for (uint64_t i = 0; i < input->resultSize; ++i)
   {
     if (leftCol[i] == rightCol[i])
-    {
       copy2Result(i);
-    }
   }
-
-  process_finished = true;
-#endif
-
-#ifdef PIPELINING
-  uint64_t prevResultSize = 0;
-  while (!(input->flush_finished))
-  {
-    inputData = input->getResults();
-    if (input->nowResultSize == 0)
-    {
-      continue;
-    }
-    copyData.clear();
-    for (auto &iu : requiredIUs)
-    {
-      auto id = input->resolve(iu);
-      copyData.push_back(inputData[id]);
-      select2ResultColId.emplace(iu, copyData.size() - 1);
-    }
-
-    auto leftColId = input->resolve(pInfo.left);
-    auto rightColId = input->resolve(pInfo.right);
-
-    auto leftCol = inputData[leftColId];
-    auto rightCol = inputData[rightColId];
-    for (uint64_t i = 0; i < input->nowResultSize - prevResultSize; ++i)
-    {
-      if (leftCol[i] == rightCol[i])
-      {
-        copy2Result(i);
-      }
-    }
-    prevResultSize = input->nowResultSize;
-  }
-
-  process_finished = true;
-  cv.notify_all();
-#endif
 }
 //---------------------------------------------------------------------------
 void Checksum::run()
 // Run
 {
-  // function for getting input of Checksum
-  // at now, I used original code for thread function
-  // Since Checksum has only one input, thread is not necessary.
-  // But I used thread for compatibility when using control of number of active thread
-  auto run_input = [&]()
+  for (auto &sInfo : colInfo)
   {
-    for (auto &sInfo : colInfo)
-    {
-      input->require(sInfo);
-    }
-    input->run();
-    return nullptr;
-  };
-
-  pthread_t input_thread;
-
-  // run child thread
-  if (pthread_create(&input_thread, NULL, thread_func<decltype(run_input)>, &run_input) < 0)
-  {
-    cerr << "[Error] Checksum failed" << endl;
-    exit(-1);
+    input->require(sInfo);
   }
-
-  // wait for child threads
-  // it does not use return value.
-  void *ret;
-  pthread_join(input_thread, &ret);
+  input->run();
 
   auto results = input->getResults();
 
@@ -478,5 +308,4 @@ void Checksum::run()
     checkSums.push_back(sum);
   }
 }
-
 //---------------------------------------------------------------------------
