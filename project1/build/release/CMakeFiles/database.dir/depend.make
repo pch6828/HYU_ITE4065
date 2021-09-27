@@ -7,6 +7,7 @@ CMakeFiles/database.dir/Joiner.cpp.o: ../../include/Parser.hpp
 CMakeFiles/database.dir/Joiner.cpp.o: ../../include/Relation.hpp
 CMakeFiles/database.dir/Joiner.cpp.o: ../../Joiner.cpp
 
+CMakeFiles/database.dir/Operators.cpp.o: ../../include/ConcurrentQueue.hpp
 CMakeFiles/database.dir/Operators.cpp.o: ../../include/Operators.hpp
 CMakeFiles/database.dir/Operators.cpp.o: ../../include/Parser.hpp
 CMakeFiles/database.dir/Operators.cpp.o: ../../include/Relation.hpp

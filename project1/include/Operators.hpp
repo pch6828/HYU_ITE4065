@@ -26,15 +26,7 @@ class Operator
   /// Operators materialize their entire result
 
 protected:
-  const static std::size_t PARTITION_SIZE = 397;
-  struct customHash
-  {
-    std::hash<uint64_t> hasher;
-    std::size_t operator()(uint64_t const &key) const noexcept
-    {
-      return hasher(key) % PARTITION_SIZE;
-    }
-  };
+  const static std::size_t PARTITION_SIZE = 47; //47, 97, 211
   /// Mapping from select info to data
   std::unordered_map<SelectInfo, unsigned> select2ResultColId;
   /// The materialized results
@@ -42,7 +34,7 @@ protected:
   /// The tmp results
   std::vector<std::vector<uint64_t>> tmpResults;
 
-  using Partition = std::unordered_map<uint64_t, std::vector<uint64_t>, customHash>;
+  using Partition = std::vector<std::vector<uint64_t>>;
   std::unordered_map<SelectInfo, Partition> partitions;
 
 public:
@@ -56,7 +48,7 @@ public:
   }
   void requirePartition(SelectInfo info)
   {
-    partitions[info] = Partition();
+    partitions[info] = Partition(PARTITION_SIZE);
   }
   Partition getPartition(SelectInfo info)
   {
@@ -128,8 +120,6 @@ class Join : public Operator
 
   using HT = std::unordered_multimap<uint64_t, uint64_t>;
 
-  /// The hash table for the join
-  HT hashTable;
   /// Columns that have to be materialized
   std::unordered_set<SelectInfo> requestedColumns;
   /// Left/right columns that have been requested
