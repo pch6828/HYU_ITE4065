@@ -26,7 +26,7 @@ class Operator
   /// Operators materialize their entire result
 
 protected:
-  const static std::size_t PARTITION_SIZE = 13;
+  const static std::size_t PARTITION_SIZE = 397;
   struct customHash
   {
     std::hash<uint64_t> hasher;

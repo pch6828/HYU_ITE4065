@@ -44,7 +44,7 @@ void Scan::run()
       const SelectInfo &info = iter.first;
       Partition &partition = iter.second;
       uint64_t colValue = resultColumns[select2ResultColId[info]][i];
-      partition[colValue].push_back(i);
+      partition[colValue].emplace_back(i);
     }
   }
 }
@@ -82,7 +82,7 @@ void FilterScan::copy2Result(uint64_t id)
     const SelectInfo &info = iter.first;
     Partition &partition = iter.second;
     uint64_t colValue = tmpResults[select2ResultColId[info]][resultSize];
-    partition[colValue].push_back(resultSize);
+    partition[colValue].emplace_back(resultSize);
   }
   ++resultSize;
 }
@@ -169,7 +169,7 @@ void Join::copy2Result(uint64_t leftId, uint64_t rightId)
     const SelectInfo &info = iter.first;
     Partition &partition = iter.second;
     uint64_t colValue = tmpResults[select2ResultColId[info]][resultSize];
-    partition[colValue].push_back(resultSize);
+    partition[colValue].emplace_back(resultSize);
   }
   ++resultSize;
 }
@@ -274,7 +274,7 @@ void SelfJoin::copy2Result(uint64_t id)
     const SelectInfo &info = iter.first;
     Partition &partition = iter.second;
     uint64_t colValue = tmpResults[select2ResultColId[info]][resultSize];
-    partition[colValue].push_back(resultSize);
+    partition[colValue].emplace_back(resultSize);
   }
   ++resultSize;
 }
