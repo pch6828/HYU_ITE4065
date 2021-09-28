@@ -60,10 +60,8 @@ void *ThreadFunc(void *arg)
             }
         }
 
-        thread_ret[tid] = cnt_prime;
-        __sync_fetch_and_add(&done, 1);
-
         pthread_mutex_lock(&mtx_for_workers);
+        thread_ret[tid] = cnt_prime;
         pthread_cond_wait(&cv_for_workers, &mtx_for_workers);
         pthread_mutex_unlock(&mtx_for_workers);
     }
@@ -101,15 +99,30 @@ int main(void)
         }
         scanf("%d", &range_end);
 
-        done = 0;
+        for (int i = 0; i < NUM_THREAD; i++)
+        {
+            thread_ret[i] = -1;
+        }
 
         pthread_mutex_lock(&mtx_for_workers);
         pthread_cond_broadcast(&cv_for_workers);
         pthread_mutex_unlock(&mtx_for_workers);
 
-        while (done != NUM_THREAD)
+        while (true)
         {
-            pthread_yield();
+            bool all_threads_done = true;
+            for (int i = 0; i < NUM_THREAD; i++)
+            {
+                if (thread_ret[i] == -1)
+                {
+                    all_threads_done = false;
+                    break;
+                }
+            }
+            if (all_threads_done)
+            {
+                break;
+            }
         }
 
         // Collect results
@@ -119,6 +132,7 @@ int main(void)
             cnt_prime += thread_ret[i];
         }
         printf("number of prime: %d\n", cnt_prime);
+        done = 0;
     }
 
     // Wait threads end
