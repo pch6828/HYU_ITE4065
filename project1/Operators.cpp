@@ -427,15 +427,57 @@ void Checksum::run()
 
   auto results = input->getResults();
 
-  for (auto &sInfo : colInfo)
+  auto partitionSize = input->resultSize / NUM_PARTITION + 1;
+
+  auto selfjoin_on_partition = [&](uint64_t partitionId)
   {
-    auto colId = input->resolve(sInfo);
-    auto resultCol = results[colId];
-    uint64_t sum = 0;
-    resultSize = input->resultSize;
-    for (auto iter = resultCol, limit = iter + input->resultSize; iter != limit; ++iter)
-      sum += *iter;
-    checkSums.push_back(sum);
+    vector<uint64_t> *subresult = new vector<uint64_t>();
+    uint64_t startIdx = partitionId * partitionSize;
+    uint64_t endIdx = min(startIdx + partitionSize, input->resultSize);
+
+    for (auto &sInfo : colInfo)
+    {
+      auto colId = input->resolve(sInfo);
+      auto resultCol = results[colId];
+      uint64_t sum = 0;
+      resultSize = input->resultSize;
+      for (uint64_t i = startIdx; i < endIdx; i++)
+        sum += resultCol[i];
+      subresult->push_back(sum);
+    }
+
+    return subresult;
+  };
+
+  vector<pthread_t *> threads;
+  for (uint64_t i = 0; i < NUM_PARTITION; i++)
+  {
+    pthread_t *thread = new pthread_t();
+    threads.push_back(thread);
+    join_thread_args *args = new join_thread_args();
+    args->func = &selfjoin_on_partition;
+    args->partitionId = i;
+    if (pthread_create(thread, NULL, join_thread_func<decltype(selfjoin_on_partition)>, (void *)args) < 0)
+    {
+      exit(-1);
+    }
+  }
+
+  for (auto &thread : threads)
+  {
+    vector<uint64_t> *ret;
+    pthread_join(*thread, (void **)&ret);
+
+    if (checkSums.empty() && !ret->empty())
+    {
+      checkSums.resize(ret->size(), 0);
+    }
+
+    for (uint64_t i = 0; i < ret->size(); i++)
+    {
+      checkSums[i] += (*ret)[i];
+    }
+    delete ret;
   }
 }
 //---------------------------------------------------------------------------
