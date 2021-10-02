@@ -31,6 +31,8 @@ unordered_map
 -
 unordered_set
 -
+functional
+-
 vector
 -
 set
@@ -90,7 +92,7 @@ Parser.hpp
 
 /mnt/c/Users/pch68/2021_ite4065_2018008395/project1/Operators.cpp
 Operators.hpp
--
+/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/Operators.hpp
 cassert
 -
 iostream
