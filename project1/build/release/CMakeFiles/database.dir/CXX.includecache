@@ -6,10 +6,6 @@
 
 #IncludeRegexTransform: 
 
-../../include/ConcurrentQueue.hpp
-pthread.h
--
-
 ../../include/Joiner.hpp
 vector
 -
@@ -34,8 +30,6 @@ stdexcept
 unordered_map
 -
 unordered_set
--
-functional
 -
 vector
 -
@@ -96,9 +90,7 @@ Parser.hpp
 
 /mnt/c/Users/pch68/2021_ite4065_2018008395/project1/Operators.cpp
 Operators.hpp
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/Operators.hpp
-ConcurrentQueue.hpp
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/ConcurrentQueue.hpp
+-
 cassert
 -
 iostream

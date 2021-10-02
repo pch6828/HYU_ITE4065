@@ -5,7 +5,6 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
-#include <functional>
 #include <vector>
 #include <set>
 #include "Relation.hpp"
@@ -26,16 +25,12 @@ class Operator
   /// Operators materialize their entire result
 
 protected:
-  const static std::size_t PARTITION_SIZE = 47; //47, 97, 211
   /// Mapping from select info to data
   std::unordered_map<SelectInfo, unsigned> select2ResultColId;
   /// The materialized results
   std::vector<uint64_t *> resultColumns;
   /// The tmp results
   std::vector<std::vector<uint64_t>> tmpResults;
-
-  using Partition = std::vector<std::vector<uint64_t>>;
-  std::unordered_map<SelectInfo, Partition> partitions;
 
 public:
   /// Require a column and add it to results
@@ -45,14 +40,6 @@ public:
   {
     assert(select2ResultColId.find(info) != select2ResultColId.end());
     return select2ResultColId[info];
-  }
-  void requirePartition(SelectInfo info)
-  {
-    partitions[info] = Partition(PARTITION_SIZE);
-  }
-  Partition getPartition(SelectInfo info)
-  {
-    return partitions[info];
   }
   /// Run
   virtual void run() = 0;
@@ -120,6 +107,8 @@ class Join : public Operator
 
   using HT = std::unordered_multimap<uint64_t, uint64_t>;
 
+  /// The hash table for the join
+  HT hashTable;
   /// Columns that have to be materialized
   std::unordered_set<SelectInfo> requestedColumns;
   /// Left/right columns that have been requested
