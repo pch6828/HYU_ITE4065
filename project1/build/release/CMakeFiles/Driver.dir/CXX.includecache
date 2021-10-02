@@ -62,7 +62,7 @@ string
 vector
 -
 
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/main.cpp
+/home/cp_project1/student08395/2021_ite4065_2018008395/project1/main.cpp
 iostream
 -
 vector
@@ -70,7 +70,7 @@ vector
 pthread.h
 -
 Joiner.hpp
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/Joiner.hpp
+/home/cp_project1/student08395/2021_ite4065_2018008395/project1/Joiner.hpp
 Parser.hpp
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/Parser.hpp
+/home/cp_project1/student08395/2021_ite4065_2018008395/project1/Parser.hpp
 

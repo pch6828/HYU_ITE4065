@@ -1,11 +1,11 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/database.dir/Relation.cpp.o"
+  "CMakeFiles/database.dir/Joiner.cpp.o"
   "CMakeFiles/database.dir/Operators.cpp.o"
   "CMakeFiles/database.dir/Parser.cpp.o"
+  "CMakeFiles/database.dir/Relation.cpp.o"
   "CMakeFiles/database.dir/Utils.cpp.o"
-  "CMakeFiles/database.dir/Joiner.cpp.o"
-  "libdatabase.pdb"
   "libdatabase.a"
+  "libdatabase.pdb"
 )
 
 # Per-language clean rules from dependency scanning.

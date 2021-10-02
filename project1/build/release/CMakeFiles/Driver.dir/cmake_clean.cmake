@@ -1,7 +1,7 @@
 file(REMOVE_RECURSE
   "CMakeFiles/Driver.dir/main.cpp.o"
-  "Driver.pdb"
   "Driver"
+  "Driver.pdb"
 )
 
 # Per-language clean rules from dependency scanning.

@@ -4,7 +4,7 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_CXX
-  "/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/harness.cpp" "/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/harness.dir/harness.cpp.o"
+  "/home/cp_project1/student08395/2021_ite4065_2018008395/project1/harness.cpp" "/home/cp_project1/student08395/2021_ite4065_2018008395/project1/build/release/CMakeFiles/harness.dir/harness.cpp.o"
   )
 set(CMAKE_CXX_COMPILER_ID "GNU")
 
