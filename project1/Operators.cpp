@@ -36,13 +36,18 @@ void Scan::run()
   // Nothing to do
   resultSize = relation.size;
 
-  for (uint64_t i = 0; i < resultSize; i++)
+  for (auto &iter : partitions)
   {
-    for (auto &iter : partitions)
+    const SelectInfo &info = iter.first;
+    Partition &partition = iter.second;
+    for (uint64_t i = 0; i < NUM_PARTITION; i++)
     {
-      const SelectInfo &info = iter.first;
-      Partition &partition = iter.second;
-      uint64_t colValue = resultColumns[select2ResultColId[info]][i];
+      partition[i].reserve(resultSize / NUM_PARTITION);
+    }
+    uint64_t colId = select2ResultColId[info];
+    for (uint64_t i = 0; i < resultSize; i++)
+    {
+      uint64_t colValue = resultColumns[colId][i];
       partition[colValue % NUM_PARTITION].emplace_back(i);
     }
   }
@@ -106,6 +111,14 @@ bool FilterScan::applyFilter(uint64_t i, FilterInfo &f)
 void FilterScan::run()
 // Run
 {
+  for (auto &iter : partitions)
+  {
+    Partition &partition = iter.second;
+    for (auto &bucket : partition)
+    {
+      bucket.reserve(relation.size / NUM_PARTITION);
+    }
+  }
   for (uint64_t i = 0; i < relation.size; ++i)
   {
     bool pass = true;

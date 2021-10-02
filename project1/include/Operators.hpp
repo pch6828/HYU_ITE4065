@@ -26,7 +26,7 @@ class Operator
   /// Operators materialize their entire result
 
 protected:
-  const static std::size_t NUM_PARTITION = 97; //13, 47, 97, 211
+  const static std::size_t NUM_PARTITION = 47; //13, 47, 97, 211
   /// Mapping from select info to data
   std::unordered_map<SelectInfo, unsigned> select2ResultColId;
   /// The materialized results
