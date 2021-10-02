@@ -26,7 +26,7 @@ class Operator
   /// Operators materialize their entire result
 
 protected:
-  const static std::size_t PARTITION_SIZE = 5; //13, 47, 97, 211
+  const static std::size_t NUM_PARTITION = 13; //13, 47, 97, 211
   /// Mapping from select info to data
   std::unordered_map<SelectInfo, unsigned> select2ResultColId;
   /// The materialized results
@@ -48,7 +48,7 @@ public:
   }
   void requirePartition(SelectInfo info)
   {
-    partitions[info] = Partition(PARTITION_SIZE);
+    partitions[info] = Partition(NUM_PARTITION);
   }
   Partition getPartition(SelectInfo info)
   {

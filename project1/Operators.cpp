@@ -1,8 +1,7 @@
 #include "Operators.hpp"
 #include <cassert>
 #include <iostream>
-#include <mutex>
-#include <condition_variable>
+#include <algorithm>
 #include <pthread.h>
 #include <stdio.h>
 //---------------------------------------------------------------------------
@@ -44,7 +43,7 @@ void Scan::run()
       const SelectInfo &info = iter.first;
       Partition &partition = iter.second;
       uint64_t colValue = resultColumns[select2ResultColId[info]][i];
-      partition[colValue % PARTITION_SIZE].emplace_back(i);
+      partition[colValue % NUM_PARTITION].emplace_back(i);
     }
   }
 }
@@ -82,7 +81,7 @@ void FilterScan::copy2Result(uint64_t id)
     const SelectInfo &info = iter.first;
     Partition &partition = iter.second;
     uint64_t colValue = tmpResults[select2ResultColId[info]][resultSize];
-    partition[colValue % PARTITION_SIZE].emplace_back(resultSize);
+    partition[colValue % NUM_PARTITION].emplace_back(resultSize);
   }
   ++resultSize;
 }
@@ -169,7 +168,7 @@ void Join::copy2Result(uint64_t leftId, uint64_t rightId)
     const SelectInfo &info = iter.first;
     Partition &partition = iter.second;
     uint64_t colValue = tmpResults[select2ResultColId[info]][resultSize];
-    partition[colValue % PARTITION_SIZE].emplace_back(resultSize);
+    partition[colValue % NUM_PARTITION].emplace_back(resultSize);
   }
   ++resultSize;
 }
@@ -178,7 +177,7 @@ void Join::copy2Result(uint64_t leftId, uint64_t rightId)
 struct join_thread_args
 {
   void *func;
-  uint64_t partition_id;
+  uint64_t partitionId;
 };
 template <typename Function>
 void *join_thread_func(void *arg)
@@ -187,9 +186,9 @@ void *join_thread_func(void *arg)
 // then it returns given function's return value
 {
   Function *f = ((Function *)((join_thread_args *)arg)->func);
-  uint64_t partition_id = ((join_thread_args *)arg)->partition_id;
+  uint64_t partitionId = ((join_thread_args *)arg)->partitionId;
 
-  void *ret = (void *)(*f)(partition_id);
+  void *ret = (void *)(*f)(partitionId);
 
   pthread_exit(ret);
 }
@@ -268,10 +267,10 @@ void Join::run()
   auto leftKeyColumn = leftInputData[leftColId];
   auto rightKeyColumn = rightInputData[rightColId];
 
-  auto join_on_partition = [&](uint64_t partition_id)
+  auto join_on_partition = [&](uint64_t partitionId)
   {
-    auto &leftIdSet = leftPartition[partition_id];
-    auto &rightIdSet = rightPartition[partition_id];
+    auto &leftIdSet = leftPartition[partitionId];
+    auto &rightIdSet = rightPartition[partitionId];
     HT hashTable;
     vector<pair<uint64_t, uint64_t>> *subresult = new vector<pair<uint64_t, uint64_t>>();
     // Build phase
@@ -295,13 +294,13 @@ void Join::run()
   };
 
   vector<pthread_t *> threads;
-  for (uint64_t i = 0; i < PARTITION_SIZE; i++)
+  for (uint64_t i = 0; i < NUM_PARTITION; i++)
   {
     pthread_t *thread = new pthread_t();
     threads.push_back(thread);
     join_thread_args *args = new join_thread_args();
     args->func = &join_on_partition;
-    args->partition_id = i;
+    args->partitionId = i;
     if (pthread_create(thread, NULL, join_thread_func<decltype(join_on_partition)>, (void *)args) < 0)
     {
       exit(-1);
@@ -331,7 +330,7 @@ void SelfJoin::copy2Result(uint64_t id)
     const SelectInfo &info = iter.first;
     Partition &partition = iter.second;
     uint64_t colValue = tmpResults[select2ResultColId[info]][resultSize];
-    partition[colValue % PARTITION_SIZE].emplace_back(resultSize);
+    partition[colValue % NUM_PARTITION].emplace_back(resultSize);
   }
   ++resultSize;
 }
@@ -355,9 +354,8 @@ void SelfJoin::run()
 {
   input->require(pInfo.left);
   input->require(pInfo.right);
-  input->requirePartition(pInfo.left);
-  input->requirePartition(pInfo.right);
   input->run();
+
   inputData = input->getResults();
 
   for (auto &iu : requiredIUs)
@@ -372,10 +370,49 @@ void SelfJoin::run()
 
   auto leftCol = inputData[leftColId];
   auto rightCol = inputData[rightColId];
-  for (uint64_t i = 0; i < input->resultSize; ++i)
+
+  auto partitionSize = input->resultSize / NUM_PARTITION + 1;
+
+  auto selfjoin_on_partition = [&](uint64_t partitionId)
   {
-    if (leftCol[i] == rightCol[i])
-      copy2Result(i);
+    vector<uint64_t> *subresult = new vector<uint64_t>();
+    uint64_t startIdx = partitionId * partitionSize;
+    uint64_t endIdx = min(startIdx + partitionSize, input->resultSize);
+    for (uint64_t i = startIdx; i < endIdx; ++i)
+    {
+      if (leftCol[i] == rightCol[i])
+      {
+        subresult->push_back(i);
+      }
+    }
+
+    return subresult;
+  };
+
+  vector<pthread_t *> threads;
+  for (uint64_t i = 0; i < NUM_PARTITION; i++)
+  {
+    pthread_t *thread = new pthread_t();
+    threads.push_back(thread);
+    join_thread_args *args = new join_thread_args();
+    args->func = &selfjoin_on_partition;
+    args->partitionId = i;
+    if (pthread_create(thread, NULL, join_thread_func<decltype(selfjoin_on_partition)>, (void *)args) < 0)
+    {
+      exit(-1);
+    }
+  }
+
+  for (auto &thread : threads)
+  {
+    vector<uint64_t> *ret;
+    pthread_join(*thread, (void **)&ret);
+
+    for (auto &id : *ret)
+    {
+      copy2Result(id);
+    }
+    delete ret;
   }
 }
 //---------------------------------------------------------------------------

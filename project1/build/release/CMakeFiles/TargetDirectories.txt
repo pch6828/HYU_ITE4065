@@ -1,7 +1,0 @@
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/rebuild_cache.dir
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/Driver.dir
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/harness.dir
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/database.dir
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/Query2SQL.dir
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/link_target.dir
-/mnt/c/Users/pch68/2021_ite4065_2018008395/project1/build/release/CMakeFiles/edit_cache.dir
