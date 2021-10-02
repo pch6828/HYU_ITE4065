@@ -1,21 +1,21 @@
 Performing C SOURCE FILE Test CMAKE_HAVE_LIBC_PTHREAD failed with the following output:
 Change Dir: /home/cp_project1/student08395/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp
 
-Run Build Command(s):/usr/bin/make cmTC_08d84/fast && /usr/bin/make -f CMakeFiles/cmTC_08d84.dir/build.make CMakeFiles/cmTC_08d84.dir/build
+Run Build Command(s):/usr/bin/make cmTC_d51dc/fast && /usr/bin/make -f CMakeFiles/cmTC_d51dc.dir/build.make CMakeFiles/cmTC_d51dc.dir/build
 make[1]: Entering directory '/home/cp_project1/student08395/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_08d84.dir/src.c.o
-/usr/bin/cc   -DCMAKE_HAVE_LIBC_PTHREAD   -o CMakeFiles/cmTC_08d84.dir/src.c.o   -c /home/cp_project1/student08395/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp/src.c
-Linking C executable cmTC_08d84
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_08d84.dir/link.txt --verbose=1
-/usr/bin/cc  -DCMAKE_HAVE_LIBC_PTHREAD    -rdynamic CMakeFiles/cmTC_08d84.dir/src.c.o  -o cmTC_08d84 
-/usr/bin/ld: CMakeFiles/cmTC_08d84.dir/src.c.o: in function `main':
+Building C object CMakeFiles/cmTC_d51dc.dir/src.c.o
+/usr/bin/cc   -DCMAKE_HAVE_LIBC_PTHREAD   -o CMakeFiles/cmTC_d51dc.dir/src.c.o   -c /home/cp_project1/student08395/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp/src.c
+Linking C executable cmTC_d51dc
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d51dc.dir/link.txt --verbose=1
+/usr/bin/cc  -DCMAKE_HAVE_LIBC_PTHREAD    -rdynamic CMakeFiles/cmTC_d51dc.dir/src.c.o  -o cmTC_d51dc 
+/usr/bin/ld: CMakeFiles/cmTC_d51dc.dir/src.c.o: in function `main':
 src.c:(.text+0x3e): undefined reference to `pthread_create'
 /usr/bin/ld: src.c:(.text+0x4a): undefined reference to `pthread_detach'
 /usr/bin/ld: src.c:(.text+0x5b): undefined reference to `pthread_join'
 collect2: error: ld returned 1 exit status
-make[1]: *** [CMakeFiles/cmTC_08d84.dir/build.make:87: cmTC_08d84] Error 1
+make[1]: *** [CMakeFiles/cmTC_d51dc.dir/build.make:87: cmTC_d51dc] Error 1
 make[1]: Leaving directory '/home/cp_project1/student08395/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp'
-make: *** [Makefile:121: cmTC_08d84/fast] Error 2
+make: *** [Makefile:121: cmTC_d51dc/fast] Error 2
 
 
 Source file was:
@@ -41,18 +41,18 @@ int main(void)
 Determining if the function pthread_create exists in the pthreads failed with the following output:
 Change Dir: /home/cp_project1/student08395/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp
 
-Run Build Command(s):/usr/bin/make cmTC_63b11/fast && /usr/bin/make -f CMakeFiles/cmTC_63b11.dir/build.make CMakeFiles/cmTC_63b11.dir/build
+Run Build Command(s):/usr/bin/make cmTC_232d3/fast && /usr/bin/make -f CMakeFiles/cmTC_232d3.dir/build.make CMakeFiles/cmTC_232d3.dir/build
 make[1]: Entering directory '/home/cp_project1/student08395/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_63b11.dir/CheckFunctionExists.c.o
-/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_63b11.dir/CheckFunctionExists.c.o   -c /usr/share/cmake-3.16/Modules/CheckFunctionExists.c
-Linking C executable cmTC_63b11
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_63b11.dir/link.txt --verbose=1
-/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_63b11.dir/CheckFunctionExists.c.o  -o cmTC_63b11  -lpthreads 
+Building C object CMakeFiles/cmTC_232d3.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_232d3.dir/CheckFunctionExists.c.o   -c /usr/share/cmake-3.16/Modules/CheckFunctionExists.c
+Linking C executable cmTC_232d3
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_232d3.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_232d3.dir/CheckFunctionExists.c.o  -o cmTC_232d3  -lpthreads 
 /usr/bin/ld: cannot find -lpthreads
 collect2: error: ld returned 1 exit status
-make[1]: *** [CMakeFiles/cmTC_63b11.dir/build.make:87: cmTC_63b11] Error 1
+make[1]: *** [CMakeFiles/cmTC_232d3.dir/build.make:87: cmTC_232d3] Error 1
 make[1]: Leaving directory '/home/cp_project1/student08395/2021_ite4065_2018008395/project1/build/release/CMakeFiles/CMakeTmp'
-make: *** [Makefile:121: cmTC_63b11/fast] Error 2
+make: *** [Makefile:121: cmTC_232d3/fast] Error 2
 
 
 
