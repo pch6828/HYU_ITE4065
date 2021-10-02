@@ -6,8 +6,6 @@
 
 using namespace std;
 //---------------------------------------------------------------------------
-#define INTER_PARALLEL_JOIN
-//---------------------------------------------------------------------------
 Joiner joiner;
 //---------------------------------------------------------------------------
 void *thread_func(void *arg)
@@ -33,7 +31,6 @@ int main(int argc, char *argv[])
    vector<pthread_t *> threads;
    while (getline(cin, line))
    {
-#ifdef INTER_PARALLEL_JOIN
       if (line == "F")
       {
          for (auto &thread : threads)
@@ -55,16 +52,6 @@ int main(int argc, char *argv[])
       {
          exit(-1);
       }
-#endif
-#ifndef INTER_PARALLEL_JOIN
-      if (line == "F")
-      {
-         continue;
-      }
-      QueryInfo i;
-      i.parseQuery(line);
-      cout << joiner.join(i);
-#endif
    }
 
    return 0;
