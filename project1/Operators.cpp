@@ -7,8 +7,6 @@
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
-#define NUM_PARTITION 29
-//---------------------------------------------------------------------------
 template <typename Function>
 void *thread_func(void *arg)
 // function template of thread function
@@ -17,25 +15,6 @@ void *thread_func(void *arg)
 {
   Function *f = (Function *)arg;
   void *ret = (void *)(*f)();
-
-  pthread_exit(ret);
-}
-//---------------------------------------------------------------------------
-struct join_thread_args
-{
-  void *func;
-  uint64_t partitionId;
-};
-template <typename Function>
-void *join_thread_func(void *arg)
-// function template of thread function
-// by using arg, which should be lambda function, it runs given function
-// then it returns given function's return value
-{
-  Function *f = ((Function *)((join_thread_args *)arg)->func);
-  uint64_t partitionId = ((join_thread_args *)arg)->partitionId;
-
-  void *ret = (void *)(*f)(partitionId);
 
   pthread_exit(ret);
 }
@@ -299,49 +278,10 @@ void SelfJoin::run()
 
   auto leftCol = inputData[leftColId];
   auto rightCol = inputData[rightColId];
-
-  auto partitionSize = input->resultSize / NUM_PARTITION + 1;
-
-  auto selfjoin_on_partition = [&](uint64_t partitionId)
+  for (uint64_t i = 0; i < input->resultSize; ++i)
   {
-    vector<uint64_t> *subresult = new vector<uint64_t>();
-    uint64_t startIdx = partitionId * partitionSize;
-    uint64_t endIdx = min(startIdx + partitionSize, input->resultSize);
-    for (uint64_t i = startIdx; i < endIdx; ++i)
-    {
-      if (leftCol[i] == rightCol[i])
-      {
-        subresult->push_back(i);
-      }
-    }
-
-    return subresult;
-  };
-
-  vector<pthread_t *> threads;
-  for (uint64_t i = 0; i < NUM_PARTITION; i++)
-  {
-    pthread_t *thread = new pthread_t();
-    threads.push_back(thread);
-    join_thread_args *args = new join_thread_args();
-    args->func = &selfjoin_on_partition;
-    args->partitionId = i;
-    if (pthread_create(thread, NULL, join_thread_func<decltype(selfjoin_on_partition)>, (void *)args) < 0)
-    {
-      exit(-1);
-    }
-  }
-
-  for (auto &thread : threads)
-  {
-    vector<uint64_t> *ret;
-    pthread_join(*thread, (void **)&ret);
-
-    for (auto &id : *ret)
-    {
-      copy2Result(id);
-    }
-    delete ret;
+    if (leftCol[i] == rightCol[i])
+      copy2Result(i);
   }
 }
 //---------------------------------------------------------------------------
@@ -356,39 +296,15 @@ void Checksum::run()
 
   auto results = input->getResults();
 
-  auto checksum_on_columns = [&](uint64_t colId)
+  for (auto &sInfo : colInfo)
   {
+    auto colId = input->resolve(sInfo);
     auto resultCol = results[colId];
     uint64_t sum = 0;
     resultSize = input->resultSize;
     for (auto iter = resultCol, limit = iter + input->resultSize; iter != limit; ++iter)
       sum += *iter;
-
-    return sum;
-  };
-
-  vector<pthread_t *> threads;
-
-  for (auto &sInfo : colInfo)
-  {
-    auto colId = input->resolve(sInfo);
-    pthread_t *thread = new pthread_t();
-    threads.push_back(thread);
-    join_thread_args *args = new join_thread_args();
-    args->func = &checksum_on_columns;
-    args->partitionId = colId;
-    if (pthread_create(thread, NULL, join_thread_func<decltype(checksum_on_columns)>, (void *)args) < 0)
-    {
-      exit(-1);
-    }
-  }
-
-  for (auto &thread : threads)
-  {
-    void *ret;
-    pthread_join(*thread, &ret);
-
-    checkSums.push_back((uint64_t)ret);
+    checkSums.push_back(sum);
   }
 }
 //---------------------------------------------------------------------------
