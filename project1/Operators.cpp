@@ -7,7 +7,7 @@
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
-#define NUM_PARTITION 13
+#define NUM_PARTITION 29
 //---------------------------------------------------------------------------
 template <typename Function>
 void *thread_func(void *arg)
@@ -356,15 +356,39 @@ void Checksum::run()
 
   auto results = input->getResults();
 
-  for (auto &sInfo : colInfo)
+  auto checksum_on_columns = [&](uint64_t colId)
   {
-    auto colId = input->resolve(sInfo);
     auto resultCol = results[colId];
     uint64_t sum = 0;
     resultSize = input->resultSize;
     for (auto iter = resultCol, limit = iter + input->resultSize; iter != limit; ++iter)
       sum += *iter;
-    checkSums.push_back(sum);
+
+    return sum;
+  };
+
+  vector<pthread_t *> threads;
+
+  for (auto &sInfo : colInfo)
+  {
+    auto colId = input->resolve(sInfo);
+    pthread_t *thread = new pthread_t();
+    threads.push_back(thread);
+    join_thread_args *args = new join_thread_args();
+    args->func = &checksum_on_columns;
+    args->partitionId = colId;
+    if (pthread_create(thread, NULL, join_thread_func<decltype(checksum_on_columns)>, (void *)args) < 0)
+    {
+      exit(-1);
+    }
+  }
+
+  for (auto &thread : threads)
+  {
+    void *ret;
+    pthread_join(*thread, &ret);
+
+    checkSums.push_back((uint64_t)ret);
   }
 }
 //---------------------------------------------------------------------------
