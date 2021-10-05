@@ -43,8 +43,11 @@ void *thread_func(void *arg)
 void flush_all_thread()
 {
    for (long i = 0; i < num_active_thread; i++)
-   {  
-      while (thread_ret[i] == (string *)-1);
+   {
+      while (thread_ret[i] == (string *)-1)
+      {
+         pthread_yield();
+      }
       cout << *(thread_ret[i]);
       thread_ret[i] = (string *)-1;
    }
