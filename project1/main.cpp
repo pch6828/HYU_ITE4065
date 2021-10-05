@@ -42,24 +42,9 @@ void *thread_func(void *arg)
 
 void flush_all_thread()
 {
-   while (true)
-   {
-      bool all_threads_done = true;
-      for (long i = 0; i < num_active_thread; i++)
-      {
-         if (thread_ret[i] == (string *)-1)
-         {
-            all_threads_done = false;
-            break;
-         }
-      }
-      if (all_threads_done)
-      {
-         break;
-      }
-   }
    for (long i = 0; i < num_active_thread; i++)
-   {
+   {  
+      while (thread_ret[i] == (string *)-1);
       cout << *(thread_ret[i]);
       thread_ret[i] = (string *)-1;
    }
