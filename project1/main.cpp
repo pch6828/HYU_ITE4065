@@ -16,8 +16,6 @@ string *volatile thread_ret[NUM_THREAD];
 pthread_t threads[NUM_THREAD];
 pthread_mutex_t mtx_for_workers[NUM_THREAD];
 pthread_cond_t cv_for_workers[NUM_THREAD];
-pthread_mutex_t mtx_for_main[NUM_THREAD];
-pthread_cond_t cv_for_main[NUM_THREAD];
 //---------------------------------------------------------------------------
 void *thread_func(void *arg)
 {
@@ -35,9 +33,6 @@ void *thread_func(void *arg)
 
       pthread_mutex_lock(&mtx_for_workers[tid]);
       thread_ret[tid] = result;
-      pthread_mutex_lock(&mtx_for_main[tid]);
-      pthread_cond_broadcast(&cv_for_main[tid]);
-      pthread_mutex_unlock(&mtx_for_main[tid]);
       pthread_cond_wait(&cv_for_workers[tid], &mtx_for_workers[tid]);
       pthread_mutex_unlock(&mtx_for_workers[tid]);
    }
@@ -49,11 +44,9 @@ void flush_all_thread()
 {
    for (long i = 0; i < num_active_thread; i++)
    {
-      if (thread_ret[i] == (string *)-1)
+      while (thread_ret[i] == (string *)-1)
       {
-         pthread_mutex_lock(&mtx_for_main[i]);
-         pthread_cond_wait(&cv_for_main[i], &mtx_for_main[i]);
-         pthread_mutex_unlock(&mtx_for_main[i]);
+         pthread_yield();
       }
       cout << *(thread_ret[i]);
       thread_ret[i] = (string *)-1;
@@ -79,8 +72,6 @@ int main(int argc, char *argv[])
    {
       mtx_for_workers[i] = PTHREAD_MUTEX_INITIALIZER;
       cv_for_workers[i] = PTHREAD_COND_INITIALIZER;
-      mtx_for_main[i] = PTHREAD_MUTEX_INITIALIZER;
-      cv_for_main[i] = PTHREAD_COND_INITIALIZER;
       if (pthread_create(&threads[i], 0, thread_func, (void *)i) < 0)
       {
          printf("pthread_create error!\n");
