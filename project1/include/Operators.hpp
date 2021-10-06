@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <deque>
 #include <set>
 #include "Relation.hpp"
 #include "Parser.hpp"
@@ -28,7 +29,7 @@ protected:
   /// Mapping from select info to data
   std::unordered_map<SelectInfo, unsigned> select2ResultColId;
   /// The materialized results
-  std::vector<uint64_t *> resultColumns;
+  std::vector<std::deque<uint64_t>> resultColumns;
   /// The tmp results
   std::vector<std::vector<uint64_t>> tmpResults;
 
@@ -44,7 +45,7 @@ public:
   /// Run
   virtual void run() = 0;
   /// Get  materialized results
-  virtual std::vector<uint64_t *> getResults();
+  virtual std::vector<std::deque<uint64_t>> &getResults();
   /// The result size
   uint64_t resultSize = 0;
   /// The destructor
@@ -66,8 +67,6 @@ public:
   bool require(SelectInfo info) override;
   /// Run
   void run() override;
-  /// Get  materialized results
-  virtual std::vector<uint64_t *> getResults() override;
 };
 //---------------------------------------------------------------------------
 class FilterScan : public Scan
@@ -90,8 +89,6 @@ public:
   bool require(SelectInfo info) override;
   /// Run
   void run() override;
-  /// Get  materialized results
-  virtual std::vector<uint64_t *> getResults() override { return Operator::getResults(); }
 };
 //---------------------------------------------------------------------------
 class Join : public Operator
@@ -114,10 +111,8 @@ class Join : public Operator
   /// Left/right columns that have been requested
   std::vector<SelectInfo> requestedColumnsLeft, requestedColumnsRight;
 
-  /// The entire input data of left and right
-  std::vector<uint64_t *> leftInputData, rightInputData;
   /// The input data that has to be copied
-  std::vector<uint64_t *> copyLeftData, copyRightData;
+  std::vector<std::deque<uint64_t>> copyLeftData, copyRightData;
 
 public:
   /// The constructor
@@ -139,10 +134,8 @@ class SelfJoin : public Operator
   /// The required IUs
   std::set<SelectInfo> requiredIUs;
 
-  /// The entire input data
-  std::vector<uint64_t *> inputData;
   /// The input data that has to be copied
-  std::vector<uint64_t *> copyData;
+  std::vector<std::deque<uint64_t>> copyData;
 
 public:
   /// The constructor

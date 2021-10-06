@@ -2,6 +2,7 @@
 #include <cassert>
 #include <iostream>
 #include <algorithm>
+#include <deque>
 #include <pthread.h>
 #include <stdio.h>
 //---------------------------------------------------------------------------
@@ -25,7 +26,7 @@ bool Scan::require(SelectInfo info)
   if (info.binding != relationBinding)
     return false;
   assert(info.colId < relation.columns.size());
-  resultColumns.push_back(relation.columns[info.colId]);
+  resultColumns.push_back(deque<uint64_t>(relation.columns[info.colId], relation.columns[info.colId] + relation.size));
   select2ResultColId[info] = resultColumns.size() - 1;
   return true;
 }
@@ -35,12 +36,6 @@ void Scan::run()
 {
   // Nothing to do
   resultSize = relation.size;
-}
-//---------------------------------------------------------------------------
-vector<uint64_t *> Scan::getResults()
-// Get materialized results
-{
-  return resultColumns;
 }
 //---------------------------------------------------------------------------
 bool FilterScan::require(SelectInfo info)
@@ -53,8 +48,8 @@ bool FilterScan::require(SelectInfo info)
   {
     // Add to results
     inputData.push_back(relation.columns[info.colId]);
-    tmpResults.emplace_back();
-    unsigned colId = tmpResults.size() - 1;
+    resultColumns.emplace_back();
+    unsigned colId = resultColumns.size() - 1;
     select2ResultColId[info] = colId;
   }
   return true;
@@ -64,7 +59,7 @@ void FilterScan::copy2Result(uint64_t id)
 // Copy to result
 {
   for (unsigned cId = 0; cId < inputData.size(); ++cId)
-    tmpResults[cId].push_back(inputData[cId][id]);
+    resultColumns[cId].push_back(inputData[cId][id]);
   ++resultSize;
 }
 //---------------------------------------------------------------------------
@@ -100,15 +95,10 @@ void FilterScan::run()
   }
 }
 //---------------------------------------------------------------------------
-vector<uint64_t *> Operator::getResults()
+std::vector<std::deque<uint64_t>> &Operator::getResults()
 // Get materialized results
 {
-  vector<uint64_t *> resultVector;
-  for (auto &c : tmpResults)
-  {
-    resultVector.push_back(c.data());
-  }
-  return resultVector;
+  return resultColumns;
 }
 //---------------------------------------------------------------------------
 bool Join::require(SelectInfo info)
@@ -130,7 +120,7 @@ bool Join::require(SelectInfo info)
     if (!success)
       return false;
 
-    tmpResults.emplace_back();
+    resultColumns.emplace_back();
     requestedColumns.emplace(info);
   }
   return true;
@@ -141,10 +131,10 @@ void Join::copy2Result(uint64_t leftId, uint64_t rightId)
 {
   unsigned relColId = 0;
   for (unsigned cId = 0; cId < copyLeftData.size(); ++cId)
-    tmpResults[relColId++].push_back(copyLeftData[cId][leftId]);
+    resultColumns[relColId++].push_back(copyLeftData[cId][leftId]);
 
   for (unsigned cId = 0; cId < copyRightData.size(); ++cId)
-    tmpResults[relColId++].push_back(copyRightData[cId][rightId]);
+    resultColumns[relColId++].push_back(copyRightData[cId][rightId]);
   ++resultSize;
 }
 //---------------------------------------------------------------------------
@@ -197,8 +187,8 @@ void Join::run()
     swap(requestedColumnsLeft, requestedColumnsRight);
   }
 
-  auto leftInputData = left->getResults();
-  auto rightInputData = right->getResults();
+  auto &leftInputData = left->getResults();
+  auto &rightInputData = right->getResults();
 
   // Resolve the input columns
   unsigned resColId = 0;
@@ -240,7 +230,7 @@ void SelfJoin::copy2Result(uint64_t id)
 // Copy to result
 {
   for (unsigned cId = 0; cId < copyData.size(); ++cId)
-    tmpResults[cId].push_back(copyData[cId][id]);
+    resultColumns[cId].push_back(copyData[cId][id]);
   ++resultSize;
 }
 //---------------------------------------------------------------------------
@@ -251,7 +241,7 @@ bool SelfJoin::require(SelectInfo info)
     return true;
   if (input->require(info))
   {
-    tmpResults.emplace_back();
+    resultColumns.emplace_back();
     requiredIUs.emplace(info);
     return true;
   }
@@ -264,7 +254,7 @@ void SelfJoin::run()
   input->require(pInfo.left);
   input->require(pInfo.right);
   input->run();
-  inputData = input->getResults();
+  auto &inputData = input->getResults();
 
   for (auto &iu : requiredIUs)
   {
@@ -302,8 +292,8 @@ void Checksum::run()
     auto resultCol = results[colId];
     uint64_t sum = 0;
     resultSize = input->resultSize;
-    for (auto iter = resultCol, limit = iter + input->resultSize; iter != limit; ++iter)
-      sum += *iter;
+    for (auto i : resultCol)
+      sum += i;
     checkSums.push_back(sum);
   }
 }
