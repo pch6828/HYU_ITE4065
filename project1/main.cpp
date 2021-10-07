@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
       thread_arg[num_active_thread] = i;
       thread_ret[num_active_thread] = (string *)-1;
       pthread_mutex_lock(&mtx_for_workers[num_active_thread]);
-      pthread_cond_broadcast(&cv_for_workers[num_active_thread]);
+      pthread_cond_signal(&cv_for_workers[num_active_thread]);
       pthread_mutex_unlock(&mtx_for_workers[num_active_thread]);
 
       num_active_thread++;
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
    for (int i = 0; i < NUM_THREAD; i++)
    {
       pthread_mutex_lock(&mtx_for_workers[i]);
-      pthread_cond_broadcast(&cv_for_workers[i]);
+      pthread_cond_signal(&cv_for_workers[i]);
       pthread_mutex_unlock(&mtx_for_workers[i]);
       pthread_join(threads[i], NULL);
    }
