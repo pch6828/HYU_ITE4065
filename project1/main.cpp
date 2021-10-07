@@ -10,12 +10,16 @@ using namespace std;
 //---------------------------------------------------------------------------
 Joiner joiner;
 bool is_done = false;
+bool is_flushing = false;
 uint64_t num_active_thread = 0;
+uint64_t num_finished_thread = 0;
 QueryInfo *thread_arg[NUM_THREAD];
 string *volatile thread_ret[NUM_THREAD];
 pthread_t threads[NUM_THREAD];
 pthread_mutex_t mtx_for_workers[NUM_THREAD];
 pthread_cond_t cv_for_workers[NUM_THREAD];
+pthread_mutex_t mtx_for_main = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cv_for_main = PTHREAD_COND_INITIALIZER;
 //---------------------------------------------------------------------------
 void *thread_func(void *arg)
 {
@@ -33,6 +37,13 @@ void *thread_func(void *arg)
 
       pthread_mutex_lock(&mtx_for_workers[tid]);
       thread_ret[tid] = result;
+      __sync_fetch_and_add(&num_finished_thread, 1);
+      if (is_flushing && num_finished_thread == num_active_thread)
+      {
+         pthread_mutex_lock(&mtx_for_main);
+         pthread_cond_signal(&cv_for_main);
+         pthread_mutex_unlock(&mtx_for_main);
+      }
       pthread_cond_wait(&cv_for_workers[tid], &mtx_for_workers[tid]);
       pthread_mutex_unlock(&mtx_for_workers[tid]);
    }
@@ -42,15 +53,19 @@ void *thread_func(void *arg)
 
 void flush_all_thread()
 {
+   is_flushing = true;
+   pthread_mutex_lock(&mtx_for_main);
+   if (num_finished_thread != num_active_thread)
+   {
+      pthread_cond_wait(&cv_for_main, &mtx_for_main);
+   }
+   pthread_mutex_unlock(&mtx_for_main);
    for (long i = 0; i < num_active_thread; i++)
    {
-      while (thread_ret[i] == (string *)-1)
-      {
-         pthread_yield();
-      }
       cout << *(thread_ret[i]);
       thread_ret[i] = (string *)-1;
    }
+   is_flushing = false;
 }
 
 //---------------------------------------------------------------------------
@@ -89,6 +104,7 @@ int main(int argc, char *argv[])
       {
          flush_all_thread();
          num_active_thread = 0;
+         num_finished_thread = 0;
          continue;
       }
 
@@ -98,6 +114,7 @@ int main(int argc, char *argv[])
       {
          flush_all_thread();
          num_active_thread = 0;
+         num_finished_thread = 0;
       }
       thread_arg[num_active_thread] = i;
       thread_ret[num_active_thread] = (string *)-1;
