@@ -5,7 +5,8 @@
 #include <vector>
 #include "Relation.hpp"
 //---------------------------------------------------------------------------
-struct SelectInfo {
+struct SelectInfo
+{
    /// Relation id
    RelationId relId;
    /// Binding for the relation
@@ -13,32 +14,40 @@ struct SelectInfo {
    /// Column id
    unsigned colId;
    /// The constructor
-   SelectInfo(RelationId relId,unsigned b,unsigned colId) : relId(relId), binding(b), colId(colId) {};
+   SelectInfo(RelationId relId, unsigned b, unsigned colId) : relId(relId), binding(b), colId(colId){};
    /// The constructor if relation id does not matter
-   SelectInfo(unsigned b,unsigned colId) : SelectInfo(-1,b,colId) {};
+   SelectInfo(unsigned b, unsigned colId) : SelectInfo(-1, b, colId){};
 
    /// Equality operator
-   inline bool operator==(const SelectInfo& o) const {
-     return o.relId == relId && o.binding == binding && o.colId == colId;
+   inline bool operator==(const SelectInfo &o) const
+   {
+      return o.relId == relId && o.binding == binding && o.colId == colId;
    }
    /// Less Operator
-   inline bool operator<(const SelectInfo& o) const {
-     return binding<o.binding||colId<o.colId;
+   inline bool operator<(const SelectInfo &o) const
+   {
+      return binding < o.binding || colId < o.colId;
    }
 
    /// Dump text format
    std::string dumpText();
    /// Dump SQL
-   std::string dumpSQL(bool addSUM=false);
+   std::string dumpSQL(bool addSUM = false);
 
    /// The delimiter used in our text format
-   static const char delimiter=' ';
+   static const char delimiter = ' ';
    /// The delimiter used in SQL
-   constexpr static const char delimiterSQL[]=", ";
+   constexpr static const char delimiterSQL[] = ", ";
 };
 //---------------------------------------------------------------------------
-struct FilterInfo {
-   enum Comparison : char { Less='<', Greater='>', Equal='=' };
+struct FilterInfo
+{
+   enum Comparison : char
+   {
+      Less = '<',
+      Greater = '>',
+      Equal = '='
+   };
    /// Filter Column
    SelectInfo filterColumn;
    /// Constant
@@ -49,18 +58,25 @@ struct FilterInfo {
    std::string dumpSQL();
 
    /// The constructor
-   FilterInfo(SelectInfo filterColumn,uint64_t constant,Comparison comparison) : filterColumn(filterColumn), constant(constant), comparison(comparison) {};
+   FilterInfo(SelectInfo filterColumn, uint64_t constant, Comparison comparison) : filterColumn(filterColumn), constant(constant), comparison(comparison){};
    /// Dump text format
    std::string dumpText();
 
+   /// Equality operator
+   inline bool operator==(const FilterInfo &o) const
+   {
+      return filterColumn == o.filterColumn && constant == o.constant && comparison == o.comparison;
+   }
+
    /// The delimiter used in our text format
-   static const char delimiter='&';
+   static const char delimiter = '&';
    /// The delimiter used in SQL
-   constexpr static const char delimiterSQL[]=" and ";
+   constexpr static const char delimiterSQL[] = " and ";
 };
-static const std::vector<FilterInfo::Comparison> comparisonTypes { FilterInfo::Comparison::Less, FilterInfo::Comparison::Greater, FilterInfo::Comparison::Equal};
+static const std::vector<FilterInfo::Comparison> comparisonTypes{FilterInfo::Comparison::Less, FilterInfo::Comparison::Greater, FilterInfo::Comparison::Equal};
 //---------------------------------------------------------------------------
-struct PredicateInfo {
+struct PredicateInfo
+{
    /// Left
    SelectInfo left;
    /// Right
@@ -73,13 +89,14 @@ struct PredicateInfo {
    std::string dumpSQL();
 
    /// The delimiter used in our text format
-   static const char delimiter='&';
+   static const char delimiter = '&';
    /// The delimiter used in SQL
-   constexpr static const char delimiterSQL[]=" and ";
+   constexpr static const char delimiterSQL[] = " and ";
 };
 //---------------------------------------------------------------------------
-class QueryInfo {
-   public:
+class QueryInfo
+{
+public:
    /// The relation ids
    std::vector<RelationId> relationIds;
    /// The predicates
@@ -91,21 +108,23 @@ class QueryInfo {
    /// Reset query info
    void clear();
 
-   private:
+private:
    /// Parse a single predicate
-   void parsePredicate(std::string& rawPredicate);
+   void parsePredicate(std::string &rawPredicate);
    /// Resolve bindings of relation ids
    void resolveRelationIds();
 
-   public:
+public:
    /// Parse relation ids <r1> <r2> ...
-   void parseRelationIds(std::string& rawRelations);
+   void parseRelationIds(std::string &rawRelations);
    /// Parse predicates r1.a=r2.b&r1.b=r3.c...
-   void parsePredicates(std::string& rawPredicates);
+   void parsePredicates(std::string &rawPredicates);
    /// Parse selections r1.a r1.b r3.c...
-   void parseSelections(std::string& rawSelections);
+   void parseSelections(std::string &rawSelections);
    /// Parse selections [RELATIONS]|[PREDICATES]|[SELECTS]
-   void parseQuery(std::string& rawQuery);
+   void parseQuery(std::string &rawQuery);
+
+   void propagateFilters();
    /// Dump text format
    std::string dumpText();
    /// Dump SQL

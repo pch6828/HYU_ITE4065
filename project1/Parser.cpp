@@ -6,129 +6,171 @@
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
-static void splitString(string& line,vector<unsigned>& result,const char delimiter)
-  // Split a line into numbers
+static void splitString(string &line, vector<unsigned> &result, const char delimiter)
+// Split a line into numbers
 {
   stringstream ss(line);
   string token;
-  while (getline(ss,token,delimiter)) {
+  while (getline(ss, token, delimiter))
+  {
     result.push_back(stoul(token));
   }
 }
 //---------------------------------------------------------------------------
-static void splitString(string& line,vector<string>& result,const char delimiter)
-  // Parse a line into strings
+static void splitString(string &line, vector<string> &result, const char delimiter)
+// Parse a line into strings
 {
   stringstream ss(line);
   string token;
-  while (getline(ss,token,delimiter)) {
+  while (getline(ss, token, delimiter))
+  {
     result.push_back(token);
   }
 }
 //---------------------------------------------------------------------------
-static void splitPredicates(string& line,vector<string>& result)
-  // Split a line into predicate strings
+static void splitPredicates(string &line, vector<string> &result)
+// Split a line into predicate strings
 {
   // Determine predicate type
-  for (auto cT : comparisonTypes) {
-    if (line.find(cT)!=string::npos) {
-      splitString(line,result,cT);
+  for (auto cT : comparisonTypes)
+  {
+    if (line.find(cT) != string::npos)
+    {
+      splitString(line, result, cT);
       break;
     }
   }
 }
 //---------------------------------------------------------------------------
-void QueryInfo::parseRelationIds(string& rawRelations)
-  // Parse a string of relation ids
+void QueryInfo::parseRelationIds(string &rawRelations)
+// Parse a string of relation ids
 {
-  splitString(rawRelations,relationIds,' ');
+  splitString(rawRelations, relationIds, ' ');
 }
 //---------------------------------------------------------------------------
-static SelectInfo parseRelColPair(string& raw)
+static SelectInfo parseRelColPair(string &raw)
 {
   vector<unsigned> ids;
-  splitString(raw,ids,'.');
-  return SelectInfo(0,ids[0],ids[1]);
+  splitString(raw, ids, '.');
+  return SelectInfo(0, ids[0], ids[1]);
 }
 //---------------------------------------------------------------------------
-inline static bool isConstant(string& raw) { return raw.find('.')==string::npos; }
+inline static bool isConstant(string &raw) { return raw.find('.') == string::npos; }
 //---------------------------------------------------------------------------
-void QueryInfo::parsePredicate(string& rawPredicate)
-  // Parse a single predicate: join "r1Id.col1Id=r2Id.col2Id" or "r1Id.col1Id=constant" filter
+void QueryInfo::parsePredicate(string &rawPredicate)
+// Parse a single predicate: join "r1Id.col1Id=r2Id.col2Id" or "r1Id.col1Id=constant" filter
 {
   vector<string> relCols;
-  splitPredicates(rawPredicate,relCols);
-  assert(relCols.size()==2);
-  assert(!isConstant(relCols[0])&&"left side of a predicate is always a SelectInfo");
-  auto leftSelect=parseRelColPair(relCols[0]);
-  if (isConstant(relCols[1])) {
-    uint64_t constant=stoul(relCols[1]);
-    char compType=rawPredicate[relCols[0].size()];
-    filters.emplace_back(leftSelect,constant,FilterInfo::Comparison(compType));
-  } else {
-    predicates.emplace_back(leftSelect,parseRelColPair(relCols[1]));
+  splitPredicates(rawPredicate, relCols);
+  assert(relCols.size() == 2);
+  assert(!isConstant(relCols[0]) && "left side of a predicate is always a SelectInfo");
+  auto leftSelect = parseRelColPair(relCols[0]);
+  if (isConstant(relCols[1]))
+  {
+    uint64_t constant = stoul(relCols[1]);
+    char compType = rawPredicate[relCols[0].size()];
+    filters.emplace_back(leftSelect, constant, FilterInfo::Comparison(compType));
+  }
+  else
+  {
+    predicates.emplace_back(leftSelect, parseRelColPair(relCols[1]));
   }
 }
 //---------------------------------------------------------------------------
-void QueryInfo::parsePredicates(string& text)
-  // Parse predicates
+void QueryInfo::parsePredicates(string &text)
+// Parse predicates
 {
   vector<string> predicateStrings;
-  splitString(text,predicateStrings,'&');
-  for (auto& rawPredicate : predicateStrings) {
+  splitString(text, predicateStrings, '&');
+  for (auto &rawPredicate : predicateStrings)
+  {
     parsePredicate(rawPredicate);
   }
 }
 //---------------------------------------------------------------------------
-void QueryInfo::parseSelections(string& rawSelections)
- // Parse selections
+void QueryInfo::parseSelections(string &rawSelections)
+// Parse selections
 {
   vector<string> selectionStrings;
-  splitString(rawSelections,selectionStrings,' ');
-  for (auto& rawSelect : selectionStrings) {
+  splitString(rawSelections, selectionStrings, ' ');
+  for (auto &rawSelect : selectionStrings)
+  {
     selections.emplace_back(parseRelColPair(rawSelect));
   }
 }
 //---------------------------------------------------------------------------
-static void resolveIds(vector<unsigned>& relationIds,SelectInfo& selectInfo)
-  // Resolve relation id
+static void resolveIds(vector<unsigned> &relationIds, SelectInfo &selectInfo)
+// Resolve relation id
 {
-  selectInfo.relId=relationIds[selectInfo.binding];
+  selectInfo.relId = relationIds[selectInfo.binding];
 }
 //---------------------------------------------------------------------------
 void QueryInfo::resolveRelationIds()
-  // Resolve relation ids
+// Resolve relation ids
 {
   // Selections
-  for (auto& sInfo : selections) {
-    resolveIds(relationIds,sInfo);
+  for (auto &sInfo : selections)
+  {
+    resolveIds(relationIds, sInfo);
   }
   // Predicates
-  for (auto& pInfo : predicates) {
-    resolveIds(relationIds,pInfo.left);
-    resolveIds(relationIds,pInfo.right);
+  for (auto &pInfo : predicates)
+  {
+    resolveIds(relationIds, pInfo.left);
+    resolveIds(relationIds, pInfo.right);
   }
   // Filters
-  for (auto& fInfo : filters) {
-    resolveIds(relationIds,fInfo.filterColumn);
+  for (auto &fInfo : filters)
+  {
+    resolveIds(relationIds, fInfo.filterColumn);
   }
 }
 //---------------------------------------------------------------------------
-void QueryInfo::parseQuery(string& rawQuery)
-  // Parse query [RELATIONS]|[PREDICATES]|[SELECTS]
+void QueryInfo::parseQuery(string &rawQuery)
+// Parse query [RELATIONS]|[PREDICATES]|[SELECTS]
 {
   clear();
   vector<string> queryParts;
-  splitString(rawQuery,queryParts,'|');
-  assert(queryParts.size()==3);
+  splitString(rawQuery, queryParts, '|');
+  assert(queryParts.size() == 3);
   parseRelationIds(queryParts[0]);
   parsePredicates(queryParts[1]);
   parseSelections(queryParts[2]);
   resolveRelationIds();
+  propagateFilters();
+}
+//---------------------------------------------------------------------------
+void QueryInfo::propagateFilters()
+{
+  for (int i = 0; i < filters.size(); i++)
+  {
+    auto &filter = filters[i];
+    for (auto &predicate : predicates)
+    {
+      if (predicate.left == filter.filterColumn)
+      {
+        FilterInfo newFilter(filter);
+        newFilter.filterColumn = predicate.left;
+        if (find(filters.begin(), filters.end(), newFilter) == filters.end())
+        {
+          filters.push_back(newFilter);
+        }
+      }
+      else if (predicate.right == filter.filterColumn)
+      {
+        FilterInfo newFilter(filter);
+        newFilter.filterColumn = predicate.right;
+        if (find(filters.begin(), filters.end(), newFilter) == filters.end())
+        {
+          filters.push_back(newFilter);
+        }
+      }
+    }
+  }
 }
 //---------------------------------------------------------------------------
 void QueryInfo::clear()
-  // Reset query info
+// Reset query info
 {
   relationIds.clear();
   predicates.clear();
@@ -137,113 +179,118 @@ void QueryInfo::clear()
 }
 //---------------------------------------------------------------------------
 static string wrapRelationName(uint64_t id)
-  // Wraps relation id into quotes to be a SQL compliant string
+// Wraps relation id into quotes to be a SQL compliant string
 {
-  return "\""+to_string(id)+"\"";
+  return "\"" + to_string(id) + "\"";
 }
 //---------------------------------------------------------------------------
 string SelectInfo::dumpSQL(bool addSUM)
-  // Appends a selection info to the stream
+// Appends a selection info to the stream
 {
-  auto innerPart=wrapRelationName(binding)+".c"+to_string(colId);
-  return addSUM?"SUM("+innerPart+")":innerPart;
+  auto innerPart = wrapRelationName(binding) + ".c" + to_string(colId);
+  return addSUM ? "SUM(" + innerPart + ")" : innerPart;
 }
 //---------------------------------------------------------------------------
 string SelectInfo::dumpText()
-  // Dump text format
+// Dump text format
 {
-  return to_string(binding)+"."+to_string(colId);
+  return to_string(binding) + "." + to_string(colId);
 }
 //---------------------------------------------------------------------------
 string FilterInfo::dumpText()
-  // Dump text format
+// Dump text format
 {
-  return filterColumn.dumpText()+static_cast<char>(comparison)+to_string(constant);
+  return filterColumn.dumpText() + static_cast<char>(comparison) + to_string(constant);
 }
 //---------------------------------------------------------------------------
 string FilterInfo::dumpSQL()
-  // Dump text format
+// Dump text format
 {
-  return filterColumn.dumpSQL()+static_cast<char>(comparison)+to_string(constant);
+  return filterColumn.dumpSQL() + static_cast<char>(comparison) + to_string(constant);
 }
 //---------------------------------------------------------------------------
 string PredicateInfo::dumpText()
-  // Dump text format
+// Dump text format
 {
-  return left.dumpText()+'='+right.dumpText();
+  return left.dumpText() + '=' + right.dumpText();
 }
 //---------------------------------------------------------------------------
 string PredicateInfo::dumpSQL()
-  // Dump text format
+// Dump text format
 {
-  return left.dumpSQL()+'='+right.dumpSQL();
+  return left.dumpSQL() + '=' + right.dumpSQL();
 }
 //---------------------------------------------------------------------------
 template <typename T>
-static void dumpPart(stringstream& ss,vector<T> elements)
+static void dumpPart(stringstream &ss, vector<T> elements)
 {
-  for (unsigned i=0;i<elements.size();++i) {
+  for (unsigned i = 0; i < elements.size(); ++i)
+  {
     ss << elements[i].dumpText();
-    if (i<elements.size()-1)
+    if (i < elements.size() - 1)
       ss << T::delimiter;
   }
 }
 //---------------------------------------------------------------------------
 template <typename T>
-static void dumpPartSQL(stringstream& ss,vector<T> elements)
+static void dumpPartSQL(stringstream &ss, vector<T> elements)
 {
-  for (unsigned i=0;i<elements.size();++i) {
+  for (unsigned i = 0; i < elements.size(); ++i)
+  {
     ss << elements[i].dumpSQL();
-    if (i<elements.size()-1)
+    if (i < elements.size() - 1)
       ss << T::delimiterSQL;
   }
 }
 //---------------------------------------------------------------------------
 string QueryInfo::dumpText()
-  // Dump text format
+// Dump text format
 {
   stringstream text;
   // Relations
-  for (unsigned i=0;i<relationIds.size();++i) {
+  for (unsigned i = 0; i < relationIds.size(); ++i)
+  {
     text << relationIds[i];
-    if (i<relationIds.size()-1)
+    if (i < relationIds.size() - 1)
       text << " ";
   }
   text << "|";
 
-  dumpPart(text,predicates);
-  if (predicates.size()&&filters.size())
+  dumpPart(text, predicates);
+  if (predicates.size() && filters.size())
     text << PredicateInfo::delimiter;
-  dumpPart(text,filters);
+  dumpPart(text, filters);
   text << "|";
-  dumpPart(text,selections);
+  dumpPart(text, selections);
 
   return text.str();
 }
 //---------------------------------------------------------------------------
 string QueryInfo::dumpSQL()
-  // Dump SQL
+// Dump SQL
 {
   stringstream sql;
   sql << "SELECT ";
-  for (unsigned i=0;i<selections.size();++i) {
+  for (unsigned i = 0; i < selections.size(); ++i)
+  {
     sql << selections[i].dumpSQL(true);
-    if (i<selections.size()-1)
+    if (i < selections.size() - 1)
       sql << ", ";
   }
 
   sql << " FROM ";
-  for (unsigned i=0;i<relationIds.size();++i) {
+  for (unsigned i = 0; i < relationIds.size(); ++i)
+  {
     sql << "r" << relationIds[i] << " " << wrapRelationName(i);
-    if (i<relationIds.size()-1)
+    if (i < relationIds.size() - 1)
       sql << ", ";
   }
 
   sql << " WHERE ";
-  dumpPartSQL(sql,predicates);
-  if (predicates.size()&&filters.size())
+  dumpPartSQL(sql, predicates);
+  if (predicates.size() && filters.size())
     sql << " and ";
-  dumpPartSQL(sql,filters);
+  dumpPartSQL(sql, filters);
 
   sql << ";";
 
