@@ -123,7 +123,7 @@ public:
    void parseSelections(std::string &rawSelections);
    /// Parse selections [RELATIONS]|[PREDICATES]|[SELECTS]
    void parseQuery(std::string &rawQuery);
-
+   /// Add filter to scan if possible
    void propagateFilters();
    /// Dump text format
    std::string dumpText();

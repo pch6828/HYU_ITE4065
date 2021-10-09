@@ -141,16 +141,21 @@ void QueryInfo::parseQuery(string &rawQuery)
 }
 //---------------------------------------------------------------------------
 void QueryInfo::propagateFilters()
+/// Add filter to scan if possible
 {
   for (int i = 0; i < filters.size(); i++)
   {
     auto &filter = filters[i];
+
+    // for each filter, apply it to other relations if possible
+    // find relations which the filter can be applied, by scanning all predicates.
     for (auto &predicate : predicates)
     {
+      // Possible Scenario 1
       if (predicate.left == filter.filterColumn)
       {
         FilterInfo newFilter(filter);
-        newFilter.filterColumn = predicate.left;
+        newFilter.filterColumn = predicate.right;
         if (find(filters.begin(), filters.end(), newFilter) == filters.end())
         {
           filters.push_back(newFilter);
@@ -159,7 +164,7 @@ void QueryInfo::propagateFilters()
       else if (predicate.right == filter.filterColumn)
       {
         FilterInfo newFilter(filter);
-        newFilter.filterColumn = predicate.right;
+        newFilter.filterColumn = predicate.left;
         if (find(filters.begin(), filters.end(), newFilter) == filters.end())
         {
           filters.push_back(newFilter);
