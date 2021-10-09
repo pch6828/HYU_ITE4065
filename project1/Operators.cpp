@@ -169,9 +169,9 @@ void Join::run()
     return nullptr;
   };
 
-  // run each thread
   pthread_t left_thread, right_thread;
 
+  // run each thread
   if (pthread_create(&left_thread, NULL, thread_func<decltype(run_left)>, &run_left) < 0)
   {
     cerr << "[Error]" << pInfo.left.dumpText() << " failed" << endl;
@@ -185,9 +185,8 @@ void Join::run()
 
   // wait for child threads
   // it does not use return value.
-  void *ret;
-  pthread_join(left_thread, &ret);
-  pthread_join(right_thread, &ret);
+  pthread_join(left_thread, NULL);
+  pthread_join(right_thread, NULL);
 
   // Use smaller input for build
   if (left->resultSize > right->resultSize)

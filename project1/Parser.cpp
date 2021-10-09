@@ -152,19 +152,32 @@ void QueryInfo::propagateFilters()
     for (auto &predicate : predicates)
     {
       // Possible Scenario 1
+      // if filter is applied to left input of predicate,
+      // right input should satisfy this filter too.
       if (predicate.left == filter.filterColumn)
       {
+        // make new filter with the same fields of original filter
         FilterInfo newFilter(filter);
+        // apply filter to predicate's right input
         newFilter.filterColumn = predicate.right;
+        // if this filter is not applied before,
+        // add new filter to query information.
         if (find(filters.begin(), filters.end(), newFilter) == filters.end())
         {
           filters.push_back(newFilter);
         }
       }
+      // Possible Scenario 2
+      // if filter is applied to right input of predicate,
+      // left input should satisfy this filter too.
       else if (predicate.right == filter.filterColumn)
       {
+        // make new filter with the same fields of original filter
         FilterInfo newFilter(filter);
+        // apply filter to predicate's left input
         newFilter.filterColumn = predicate.left;
+        // if this filter is not applied before,
+        // add new filter to query information.
         if (find(filters.begin(), filters.end(), newFilter) == filters.end())
         {
           filters.push_back(newFilter);
