@@ -137,7 +137,7 @@ void QueryInfo::parseQuery(string &rawQuery)
   parsePredicates(queryParts[1]);
   parseSelections(queryParts[2]);
   resolveRelationIds();
-  //propagateFilters();
+  propagateFilters();
 }
 //---------------------------------------------------------------------------
 void QueryInfo::propagateFilters()

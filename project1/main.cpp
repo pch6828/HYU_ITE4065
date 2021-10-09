@@ -6,7 +6,7 @@
 
 using namespace std;
 //---------------------------------------------------------------------------
-#define NUM_THREAD 47
+#define NUM_THREAD 40
 //---------------------------------------------------------------------------
 Joiner joiner;
 // flag value to indicate program's termination
