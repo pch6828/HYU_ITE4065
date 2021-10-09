@@ -11,12 +11,10 @@ using namespace std;
 Joiner joiner;
 // flag value to indicate program's termination
 bool is_done = false;
-bool is_flushing = false;
 // number of active thread
 // this value is used at waiting each thread's result.
 // Since each batch's size varies, it need this value.
 uint64_t num_active_thread = 0;
-uint64_t num_finished_thread = 0;
 // array for store each thread's argument value
 QueryInfo *thread_arg[NUM_THREAD];
 // array for store each thread's return value
@@ -29,8 +27,6 @@ pthread_t threads[NUM_THREAD];
 // it needs mutexes and condition variables with the same number of threads.
 pthread_mutex_t mtx_for_workers[NUM_THREAD];
 pthread_cond_t cv_for_workers[NUM_THREAD];
-pthread_mutex_t mtx_for_main = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t cv_for_main = PTHREAD_COND_INITIALIZER;
 //---------------------------------------------------------------------------
 void *thread_func(void *arg)
 // thread function for pthread
@@ -60,14 +56,6 @@ void *thread_func(void *arg)
       // save its result in global array
       // this also means, this thread's work is ended, and it need to be flushed.
       thread_ret[tid] = result;
-
-      __sync_fetch_and_add(&num_finished_thread, 1);
-      if (is_flushing && num_finished_thread == num_active_thread)
-      {
-         pthread_mutex_lock(&mtx_for_main);
-         pthread_cond_signal(&cv_for_main);
-         pthread_mutex_unlock(&mtx_for_main);
-      }
       pthread_cond_wait(&cv_for_workers[tid], &mtx_for_workers[tid]);
       pthread_mutex_unlock(&mtx_for_workers[tid]);
    }
@@ -78,23 +66,15 @@ void *thread_func(void *arg)
 void flush_all_thread()
 /// wait for results from all threads, and flush it.
 {
-   is_flushing = true;
-   pthread_mutex_lock(&mtx_for_main);
-   if (num_finished_thread != num_active_thread)
-   {
-      pthread_cond_wait(&cv_for_main, &mtx_for_main);
-   }
-   pthread_mutex_unlock(&mtx_for_main);
-
    // for all active threads,
    for (long i = 0; i < num_active_thread; i++)
    {
+      while (thread_ret[i] == (string *)-1)
+         ;
       // print it out and set flag to -1;
       cout << *(thread_ret[i]);
       thread_ret[i] = (string *)-1;
    }
-
-   num_finished_thread = 0;
 }
 //---------------------------------------------------------------------------
 int main(int argc, char *argv[])
