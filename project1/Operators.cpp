@@ -7,6 +7,8 @@
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
+//#define PARALLEL_OPERATOR
+//---------------------------------------------------------------------------
 template <typename Function>
 void *thread_func(void *arg)
 // function template of thread function
@@ -151,6 +153,7 @@ void Join::copy2Result(uint64_t leftId, uint64_t rightId)
 void Join::run()
 // Run
 {
+#ifdef PARALLEL_OPERATOR
   // function for getting left input of join
   // at now, I used original code for thread function
   auto run_left = [&]()
@@ -187,7 +190,13 @@ void Join::run()
   // it does not use return value.
   pthread_join(left_thread, NULL);
   pthread_join(right_thread, NULL);
-
+#endif
+#ifndef PARALLEL_OPERATOR
+  left->require(pInfo.left);
+  left->run();
+  right->require(pInfo.right);
+  right->run();
+#endif
   // Use smaller input for build
   if (left->resultSize > right->resultSize)
   {
