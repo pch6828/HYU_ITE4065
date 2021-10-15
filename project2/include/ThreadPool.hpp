@@ -8,9 +8,9 @@ struct ThreadArg
     int tid;
     bool sleeping;
     const bool *terminateFlag;
+    void (*work)(int tid);
     pthread_mutex_t *mtxForWorkers;
     pthread_cond_t *cvForWorkers;
-    void (*work)(int tid);
 
     ThreadArg(int tid,
               const bool *terminateFlag,
@@ -40,9 +40,9 @@ private:
     std::valarray<pthread_t> workers;
 
 public:
-    ThreadPool(int numThread, int runTime, void (*work)(int tid)) : numThread(numThread),
-                                                                    terminateFlag(false),
-                                                                    workers(std::valarray<pthread_t>(numThread))
+    ThreadPool(int numThread, void (*work)(int tid)) : numThread(numThread),
+                                                       terminateFlag(false),
+                                                       workers(std::valarray<pthread_t>(numThread))
     {
         this->mtxForWorkers = PTHREAD_MUTEX_INITIALIZER;
         this->cvForWorkers = PTHREAD_COND_INITIALIZER;

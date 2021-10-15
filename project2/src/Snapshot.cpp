@@ -22,7 +22,7 @@ static valarray<int> getValueFromRegisters(valarray<SnapValue *> &regs)
 {
     valarray<int> result(regs.size());
 
-    for (int tid = 0; tid < regs.size(); tid++)
+    for (unsigned int tid = 0; tid < regs.size(); tid++)
     {
         result[tid] = regs[tid]->getValue();
     }

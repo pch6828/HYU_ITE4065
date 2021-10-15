@@ -36,8 +36,8 @@ private:
     std::valarray<SnapValue *> collect();
 
 public:
-    Snapshot(int numThread) : numThread(numThread),
-                              regs(std::valarray<SnapValue *>(numThread))
+    Snapshot(int numThread = 0) : numThread(numThread),
+                                  regs(std::valarray<SnapValue *>(numThread))
     {
         for (auto &reg : regs)
         {
