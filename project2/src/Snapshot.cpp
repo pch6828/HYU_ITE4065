@@ -38,7 +38,7 @@ valarray<SnapValue *> Snapshot::collect()
 valarray<int> Snapshot::scan()
 {
     valarray<SnapValue *> oldCopy, newCopy;
-    valarray<bool> moved(numThread, false);
+    valarray<bool> moved(false, numThread);
 
     oldCopy = this->collect();
 
