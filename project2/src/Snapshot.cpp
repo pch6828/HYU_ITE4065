@@ -2,7 +2,7 @@
 #include <valarray>
 
 using namespace std;
-
+//---------------------------------------------------------------------------
 int SnapValue::getLabel()
 {
     return this->label;
@@ -79,3 +79,4 @@ void Snapshot::update(int tid, int value)
     SnapValue *newValue = new SnapValue(oldValue->getLabel() + 1, value, snap);
     regs[tid] = newValue;
 }
+//---------------------------------------------------------------------------

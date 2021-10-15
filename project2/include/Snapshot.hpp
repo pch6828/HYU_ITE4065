@@ -1,6 +1,6 @@
 #pragma once
 #include <valarray>
-
+//---------------------------------------------------------------------------
 class SnapValue
 {
 private:
@@ -48,3 +48,4 @@ public:
     std::valarray<int> scan();
     void update(int tid, int value);
 };
+//---------------------------------------------------------------------------
