@@ -1,5 +1,6 @@
 #pragma once
 #include <valarray>
+#include <memory>
 //---------------------------------------------------------------------------
 class SnapValue
 {
@@ -31,17 +32,17 @@ class Snapshot
 {
 private:
     int numThread;
-    std::valarray<SnapValue *> regs;
+    std::valarray<std::shared_ptr<SnapValue>> regs;
 
-    std::valarray<SnapValue *> collect();
+    void collect(std::valarray<std::shared_ptr<SnapValue>> &dest);
 
 public:
     Snapshot(int numThread = 0) : numThread(numThread),
-                                  regs(std::valarray<SnapValue *>(numThread))
+                                  regs(std::valarray<std::shared_ptr<SnapValue>>(numThread))
     {
         for (auto &reg : regs)
         {
-            reg = new SnapValue();
+            reg = std::make_shared<SnapValue>();
         }
     }
 

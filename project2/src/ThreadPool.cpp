@@ -20,7 +20,7 @@ void *threadFunc(void *arg)
         threadArg->work(threadArg->tid);
         localCount++;
     }
-
+    delete threadArg;
     return (void *)localCount;
 }
 //---------------------------------------------------------------------------

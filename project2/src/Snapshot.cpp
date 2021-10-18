@@ -1,5 +1,7 @@
 #include "Snapshot.hpp"
 #include <valarray>
+#include <memory>
+#include <atomic>
 
 using namespace std;
 //---------------------------------------------------------------------------
@@ -18,7 +20,7 @@ valarray<int> SnapValue::getSnap()
     return this->snap;
 }
 //---------------------------------------------------------------------------
-static valarray<int> getValueFromRegisters(valarray<SnapValue *> &regs)
+static valarray<int> getValueFromRegisters(valarray<shared_ptr<SnapValue>> &regs)
 {
     valarray<int> result(regs.size());
 
@@ -29,23 +31,35 @@ static valarray<int> getValueFromRegisters(valarray<SnapValue *> &regs)
 
     return result;
 }
-//---------------------------------------------------------------------------
-valarray<SnapValue *> Snapshot::collect()
+
+static void copyArray(valarray<shared_ptr<SnapValue>> &dest, const valarray<shared_ptr<SnapValue>> &src)
 {
-    return this->regs;
+    for (unsigned int tid = 0; tid < dest.size(); tid++)
+    {
+        atomic_store(&dest[tid], atomic_load(&src[tid]));
+    }
+}
+//---------------------------------------------------------------------------
+void Snapshot::collect(valarray<shared_ptr<SnapValue>> &dest)
+{
+    for (int i = 0; i < this->numThread; i++)
+    {
+        atomic_store(&dest[i], atomic_load(&regs[i]));
+    }
 }
 
 valarray<int> Snapshot::scan()
 {
-    valarray<SnapValue *> oldCopy, newCopy;
-    valarray<bool> moved(false, numThread);
+    valarray<shared_ptr<SnapValue>> oldCopy(this->numThread);
+    valarray<shared_ptr<SnapValue>> newCopy(this->numThread);
+    valarray<bool> moved(false, this->numThread);
 
-    oldCopy = this->collect();
+    this->collect(oldCopy);
 
     while (true)
     {
         bool flag = true;
-        newCopy = this->collect();
+        this->collect(newCopy);
         for (int tid = 0; tid < numThread; tid++)
         {
             if (oldCopy[tid]->getLabel() != newCopy[tid]->getLabel())
@@ -57,7 +71,7 @@ valarray<int> Snapshot::scan()
                 else
                 {
                     moved[tid] = true;
-                    oldCopy = newCopy;
+                    copyArray(oldCopy, newCopy);
                     flag = false;
                     break;
                 }
@@ -75,8 +89,9 @@ valarray<int> Snapshot::scan()
 void Snapshot::update(int tid, int value)
 {
     valarray<int> snap = this->scan();
-    SnapValue *oldValue = regs[tid];
-    SnapValue *newValue = new SnapValue(oldValue->getLabel() + 1, value, snap);
-    regs[tid] = newValue;
+    shared_ptr<SnapValue> oldValue, newValue;
+    oldValue = atomic_load(&regs[tid]);
+    newValue = make_shared<SnapValue>(oldValue->getLabel() + 1, value, snap);
+    atomic_store(&regs[tid], newValue);
 }
 //---------------------------------------------------------------------------
