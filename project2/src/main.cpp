@@ -6,13 +6,17 @@
 
 using namespace std;
 
-Snapshot snapshot;
+Snapshot *snapshot;
+// random device for make random integer
 random_device rd;
 
 void updateFunc(int tid)
+// work function for thread pool
 {
+    // get random integer by using random device
     int value = rd();
-    snapshot.update(tid, value);
+    // update snapshot
+    snapshot->update(tid, value);
 }
 
 int main(int argc, char *argv[])
@@ -23,16 +27,24 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // # of threads given by command line argument
     int numThread = atoi(argv[1]);
 
     if (numThread <= 0)
     {
         cerr << "# of Thread Must Be Positive." << endl;
     }
-    snapshot = Snapshot(numThread);
+
+    // make snapshot instance
+    snapshot = new Snapshot(numThread);
+    // make thread pool
     ThreadPool threadPool(numThread, updateFunc);
+    // run all threads in thread pool for 60 seconds
     long numUpdate = threadPool.runAndChecksum(60);
 
+    // deallocate snapshot instance
+    delete snapshot;
+    // print out # of updates to stdout
     cout << numUpdate << endl;
     return 0;
 }
