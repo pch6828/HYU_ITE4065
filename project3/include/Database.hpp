@@ -20,19 +20,21 @@ private:
     LockTable lockTable;
     std::vector<Value> records;
     Logger logger;
+    uint64_t maxExecution;
 
 public:
     Database(int64_t numRecord, int64_t numTxn, uint64_t maxExecution) : lockTable(numRecord, numTxn),
                                                                          records(numRecord + 1, 100),
-                                                                         logger(numTxn);
+                                                                         logger(numTxn),
+                                                                         maxExecution(maxExecution)
     {
         // Do Nothing
     }
 
     State read(TransactionId txnId, RecordId recordId, Value &value);
     State add(TransactionId txnId, RecordId recordId, Value operand);
-    void abort(TransactionId txnId);
-    void commit(TransactionId txnId);
+    State abort(TransactionId txnId, bool terminated);
+    State commit(TransactionId txnId);
 };
 
 #endif
