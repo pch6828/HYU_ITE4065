@@ -12,45 +12,49 @@ enum LockMode
     READ,
     WRITE
 };
+class LockNode
+{
+private:
+    bool locked;
+    LockMode lockMode;
+    TransactionId txnId;
+    RecordId recordId;
+    LockNode *nextInTxn;
+    LockNode *prev;
+    LockNode *next;
+
+    LockNode(LockMode lockMode, TransactionId txnId, RecordId recordId) : locked(false),
+                                                                          lockMode(lockMode),
+                                                                          txnId(txnId),
+                                                                          recordId(recordId),
+                                                                          nextInTxn(nullptr),
+                                                                          prev(nullptr),
+                                                                          next(nullptr)
+    {
+        // Do Nothing
+    }
+
+    friend class LockList;
+    friend class LockTable;
+};
+
+class LockList
+{
+private:
+    LockNode *head;
+    LockNode *tail;
+    LockList() : head(nullptr),
+                 tail(nullptr)
+    {
+        // Do Nothing
+    }
+
+    friend class LockTable;
+};
 
 class LockTable
 {
 private:
-    class LockNode
-    {
-    public:
-        bool locked;
-        LockMode lockMode;
-        TransactionId txnId;
-        RecordId recordId;
-        LockNode *nextInTxn;
-        LockNode *prev;
-        LockNode *next;
-
-        LockNode(LockMode lockMode, TransactionId txnId, RecordId recordId) : locked(false),
-                                                                              lockMode(lockMode),
-                                                                              txnId(txnId),
-                                                                              recordId(recordId),
-                                                                              nextInTxn(nullptr),
-                                                                              prev(nullptr),
-                                                                              next(nullptr)
-        {
-            // Do Nothing
-        }
-    };
-
-    class LockList
-    {
-    public:
-        LockNode *head;
-        LockNode *tail;
-        LockList() : head(nullptr),
-                     tail(nullptr)
-        {
-            // Do Nothing
-        }
-    }
-
     pthread_mutex_t globalMtx;
     std::vector<std::deque<LockNode *>> lockPerTxn;
     std::vector<LockList> lockPerRecord;

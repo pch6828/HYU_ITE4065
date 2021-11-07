@@ -20,7 +20,7 @@ public:
     {
         // Do Nothing
     }
-}
+};
 
 class Logger
 {
@@ -34,6 +34,10 @@ private:
 
         std::ofstream fout;
 
+        LogPerThread()
+        {
+            // Do Nothing
+        }
         LogPerThread(TransactionId txnId) : fout("thread" + std::to_string(txnId) + ".txt")
         {
             // Do Nothing

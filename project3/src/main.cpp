@@ -20,16 +20,16 @@ bool transaction(TransactionId txnId)
 {
     // get random integer by using random device
     RecordId i, j, k;
-    i = abs(rd()) % numRecord + 1;
-    j = abs(rd()) % numRecord + 1;
+    i = rd() % numRecord + 1;
+    j = rd() % numRecord + 1;
     while (j == i)
     {
-        j = abs(rd()) % numRecord + 1;
+        j = rd() % numRecord + 1;
     }
-    k = abs(rd()) % numRecord + 1;
+    k = rd() % numRecord + 1;
     while (k == j || k == i)
     {
-        k = abs(rd()) % numRecord + 1;
+        k = rd() % numRecord + 1;
     }
 
     while (true)
@@ -81,17 +81,17 @@ int main(int argc, char *argv[])
     if (numThread <= 0)
     {
         cerr << "# of Thread Must Be Positive." << endl;
-        return;
+        return 0;
     }
     if (numRecord < 3)
     {
         cerr << "# of Record Must Be Greater Or Equal Than 3." << endl;
-        return;
+        return 0;
     }
     if (maxExecution <= 0)
     {
         cerr << "Maximum Execution Must Be Positive." << endl;
-        return;
+        return 0;
     }
 
     // make database instance

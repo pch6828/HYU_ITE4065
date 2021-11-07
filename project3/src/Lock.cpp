@@ -1,5 +1,6 @@
 #include "Lock.hpp"
 #include <queue>
+#include <iostream>
 
 using namespace std;
 
@@ -131,7 +132,7 @@ bool LockTable::lock(TransactionId txnId, RecordId recordId, LockMode lockMode)
     return true;
 }
 
-void unlock(TransactionId txnId)
+void LockTable::unlock(TransactionId txnId)
 {
     pthread_mutex_lock(&globalMtx);
 
@@ -161,6 +162,10 @@ void unlock(TransactionId txnId)
             if (nextLock)
             {
                 nextLock->prev = prevLock;
+            }
+            else
+            {
+                lockList.tail = prevLock;
             }
         }
         delete myLock;

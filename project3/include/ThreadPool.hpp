@@ -64,9 +64,9 @@ private:
 
 public:
     /// Constructor
-    ThreadPool(int numThread, void (*work)(int tid)) : numThread(numThread),
-                                                       terminateFlag(false),
-                                                       workers(std::valarray<pthread_t>(numThread))
+    ThreadPool(int numThread, bool (*work)(TransactionId tid)) : numThread(numThread),
+                                                                 terminateFlag(false),
+                                                                 workers(std::valarray<pthread_t>(numThread))
     {
         // initialize mutex and condition_variable
         this->mtxForWorkers = PTHREAD_MUTEX_INITIALIZER;

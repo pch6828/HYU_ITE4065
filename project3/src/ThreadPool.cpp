@@ -26,7 +26,7 @@ void *threadFunc(void *arg)
     while (!(*(threadArg->terminateFlag)))
     {
         // call given work function
-        if (threadArg->work(threadArg->tid))
+        if (threadArg->work(threadArg->txnId))
         {
             break;
         }
