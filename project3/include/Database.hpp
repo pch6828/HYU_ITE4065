@@ -33,7 +33,7 @@ public:
 
     State read(TransactionId txnId, RecordId recordId, Value &value);
     State add(TransactionId txnId, RecordId recordId, Value operand);
-    State abort(TransactionId txnId, bool terminated);
+    State abort(TransactionId txnId, bool terminated = false);
     State commit(TransactionId txnId);
 };
 

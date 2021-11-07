@@ -31,7 +31,7 @@ State Database::add(TransactionId txnId, RecordId recordId, Value operand)
     return OK;
 }
 
-State Database::abort(TransactionId txnId, bool terminated = false)
+State Database::abort(TransactionId txnId, bool terminated)
 {
     LogForUndo logForUndo = logger.getLogForUndo(txnId);
     int numOperation = logForUndo.recordIds->size();
