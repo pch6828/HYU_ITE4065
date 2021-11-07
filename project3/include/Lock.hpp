@@ -2,7 +2,7 @@
 #ifndef __LOCK_HPP__
 #define __LOCK_HPP__
 
-#include <unordered_map>
+#include <vector>
 #include <deque>
 #include <pthread.h>
 #include "Defs.hpp"
@@ -52,14 +52,20 @@ private:
     }
 
     pthread_mutex_t globalMtx;
-    std::unordered_map<TransactionId, std::deque<LockNode *>> lockPerTxn;
-    std::unordered_map<RecordId, LockList> lockPerRecord;
+    std::vector<std::deque<LockNode *>> lockPerTxn;
+    std::vector<LockList> lockPerRecord;
 
     bool checkDeadlock(TransactionId txnId, RecordId recordId);
     LockNode *addReaderLock(TransactionId txnId, RecordId recordId);
     LockNode *addWriterLock(TransactionId txnId, RecordId recordId);
 
 public:
+    LockTable(int64_t numRecord, int64_t numTxn) : lockPerTxn(numTxn + 1),
+                                                   lockPerRecord(numRecord + 1, LockList())
+    {
+        globalMtx = PTHREAD_MUTEX_INITIALIZER;
+    }
+
     bool lock(TransactionId txnId, RecordId recordId, LockMode lockMode);
     void unlock(TransactionId txnId);
 };

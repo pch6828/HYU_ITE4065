@@ -39,10 +39,10 @@ LockNode *LockTable::addReaderLock(TransactionId txnId, RecordId recordId)
     }
 
     LockNode *newLock = new LockNode(READ, txnId, recordId);
-    deque<LockNode *> &prevLockInTxn = lockPerTxn[txnId];
-    if (!prevLockInTxn.empty())
+    deque<LockNode *> &lockInTxn = lockPerTxn[txnId];
+    if (!lockInTxn.empty())
     {
-        prevLockInTxn.back()->nextInTxn = newLock;
+        lockInTxn.back()->nextInTxn = newLock;
     }
     LockList &lockList = lockPerRecord[recordId];
 
@@ -67,7 +67,7 @@ LockNode *LockTable::addReaderLock(TransactionId txnId, RecordId recordId)
         }
         iter = iter->prev;
     }
-
+    lockInTxn.push_back(newLock);
     pthread_mutex_unlock(&globalMtx);
     return newLock;
 }
@@ -82,10 +82,10 @@ LockNode *LockTable::addWriterLock(TransactionId txnId, RecordId recordId)
     }
 
     LockNode *newLock = new LockNode(WRITE, txnId, recordId);
-    deque<LockNode *> &prevLockInTxn = lockPerTxn[txnId];
-    if (!prevLockInTxn.empty())
+    deque<LockNode *> &lockInTxn = lockPerTxn[txnId];
+    if (!lockInTxn.empty())
     {
-        prevLockInTxn.back()->nextInTxn = newLock;
+        lockInTxn.back()->nextInTxn = newLock;
     }
     LockList &lockList = lockPerRecord[recordId];
 
@@ -101,6 +101,7 @@ LockNode *LockTable::addWriterLock(TransactionId txnId, RecordId recordId)
         newLock->locked = true;
     }
 
+    lockInTxn.push_back(newLock);
     pthread_mutex_unlock(&globalMtx);
     return newLock;
 }
@@ -145,8 +146,9 @@ void unlock(TransactionId txnId)
         {
             if (nextLock)
             {
-                nextLock->locked = false;
                 lockList.head = nextLock;
+                nextLock->prev = nullptr;
+                nextLock->locked = false;
             }
             else
             {
@@ -163,5 +165,6 @@ void unlock(TransactionId txnId)
         }
         delete myLock;
     }
+    lockInTxn.clear();
     pthread_mutex_unlock(&globalMtx);
 }
