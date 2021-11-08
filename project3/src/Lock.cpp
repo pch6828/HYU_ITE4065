@@ -149,7 +149,19 @@ void LockTable::unlock(TransactionId txnId)
             {
                 lockList.head = nextLock;
                 nextLock->prev = nullptr;
-                nextLock->locked = false;
+                if (nextLock->lockMode == WRITE)
+                {
+                    nextLock->locked = false;
+                }
+                else
+                {
+                    LockNode *iter = nextLock;
+                    while (iter && iter->lockMode == READ)
+                    {
+                        iter->locked = false;
+                        iter = iter->next;
+                    }
+                }
             }
             else
             {
