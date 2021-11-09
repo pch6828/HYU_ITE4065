@@ -16,7 +16,7 @@ enum LockMode
 //---------------------------------------------------------------------------
 class LockNode
 {
-    /// Definition For Single Lock Object
+    /// Definition for Single Lock Object
 private:
     bool locked;         // Flag Variable for Spin-Waiting
     LockMode lockMode;   // Locking Mode
@@ -47,7 +47,7 @@ private:
 //---------------------------------------------------------------------------
 class LockList
 {
-    /// Definition For Lock List of Single Record
+    /// Definition for Lock List of Single Record
 private:
     /// Since it is doubley-linked list, it has head and tail
     LockNode *head;
@@ -64,7 +64,7 @@ private:
 //---------------------------------------------------------------------------
 class LockTable
 {
-    /// Definition For LockTable
+    /// Definition for LockTable
     /// This is general interface for locking mechanism of total DB
 private:
     pthread_mutex_t globalMtx;                      // Global Mutex for Protecting LockTable Structure.

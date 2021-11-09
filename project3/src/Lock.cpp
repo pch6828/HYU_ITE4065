@@ -5,7 +5,7 @@
 using namespace std;
 //---------------------------------------------------------------------------
 /*
- * PAGE 1 : Function Definition for SnapValue
+ * PAGE 1 : Function Definition for LockTable
  */
 bool LockTable::checkDeadlock(TransactionId txnId, RecordId recordId)
 // Checking Deadlock by Traversing Wait-For Graph

@@ -28,12 +28,14 @@ void *threadFunc(void *arg)
         // call given work function
         if (threadArg->work(threadArg->txnId))
         {
+            // stop loop
+            // if work function's return value is true.
             break;
         }
     }
     // deallocate given argument
     delete threadArg;
-    // return local count
+    // return
     return nullptr;
 }
 //---------------------------------------------------------------------------
