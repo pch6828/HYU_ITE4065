@@ -3,9 +3,10 @@
 #define __DEFS_HPP__
 
 #include <cstdint>
-
-typedef int64_t TransactionId;
-typedef int64_t RecordId;
-typedef int64_t Value;
-
+//---------------------------------------------------------------------------
+/// Type Definition for Implemneting Readers-Writer Lock
+typedef int64_t TransactionId; // Id for Transaction
+typedef int64_t RecordId;      // Id for Record
+typedef int64_t Value;         // Record Value Type
+//---------------------------------------------------------------------------
 #endif
