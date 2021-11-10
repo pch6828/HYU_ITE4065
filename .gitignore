@@ -2,4 +2,7 @@ project1/workloads/public
 project1/build
 project2/src/*.o
 project2/run
+project3/src/*.o
+project3/run
+project3/*.txt
 project4/mariadb
