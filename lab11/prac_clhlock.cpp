@@ -20,20 +20,21 @@ public:
 		delete tail;
 	}
 
-	int *lock()
+	int *lock(int *&myNode)
 	{
-		int *myNode = new int(1);
+		*myNode = 1;
 		int *pred = __sync_lock_test_and_set(&tail, myNode);
 		while (*pred)
 		{
 			// wait
 		}
-		return myNode;
+		return pred;
 	}
 
-	void unlock(int *myNode)
+	void unlock(int *&myNode, int *pred)
 	{
 		*myNode = 0;
+		myNode = pred;
 		__sync_synchronize();
 	}
 };
@@ -48,10 +49,9 @@ void *thread_work(void *args)
 	int *myNode = new int(1);
 	for (int i = 0; i < NUM_WORK; i++)
 	{
-		myNode = object_clh.lock();
+		int *pred = object_clh.lock(myNode);
 		cnt_global++;
-		printf("%d\n", cnt_global);
-		object_clh.unlock(myNode);
+		object_clh.unlock(myNode, pred);
 	}
 }
 
