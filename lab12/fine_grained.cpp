@@ -34,10 +34,10 @@ void list_init(Node **head, Node **tail)
 {
     *head = (Node *)malloc(sizeof(Node));
     (*head)->key = INT_MIN;
-    pthread_mutex_init((*head)->mutex, NULL);
+    pthread_mutex_init(&(*head)->mutex, NULL);
     *tail = (Node *)malloc(sizeof(Node));
     (*tail)->key = INT_MAX;
-    pthread_mutex_init((*tail)->mutex, NULL);
+    pthread_mutex_init(&(*tail)->mutex, NULL);
     (*head)->next = *tail;
     (*tail)->next = NULL;
 }
