@@ -262,7 +262,7 @@ index 0fdc4e17a26..1948adf69a2 100644
    my_free_lock(ptr);
  #endif
 diff --git storage/innobase/buf/buf0buf.cc storage/innobase/buf/buf0buf.cc
-index 1c126191df3..040eed11a6f 100644
+index 1c126191df3..dda7ed9dc0b 100644
 --- storage/innobase/buf/buf0buf.cc
 +++ storage/innobase/buf/buf0buf.cc
 @@ -24,12 +24,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
@@ -1668,7 +1668,7 @@ index 1c126191df3..040eed11a6f 100644
  /** Enable buffers to be dumped to core files
  
  A convience function, not called anyhwere directly however
-@@ -999,238 +1011,216 @@ in the event that you want all of the memory to be dumped
+@@ -999,239 +1011,225 @@ in the event that you want all of the memory to be dumped
  to a core file.
  
  Returns number of errors found in madvise calls. */
@@ -2056,39 +2056,48 @@ index 1c126191df3..040eed11a6f 100644
 +  page_zip_des_init(&block->page.zip);
 +
 +  ut_d(block->debug_latch= (rw_lock_t *) ut_malloc_nokey(sizeof(rw_lock_t)));
- 
--	page_zip_des_init(&block->page.zip);
++
 +  rw_lock_create(PFS_NOT_INSTRUMENTED, &block->lock, SYNC_LEVEL_VARYING);
  
--	ut_d(block->debug_latch = (rw_lock_t *) ut_malloc_nokey(sizeof(rw_lock_t)));
+-	page_zip_des_init(&block->page.zip);
 +  ut_d(rw_lock_create(PFS_NOT_INSTRUMENTED, block->debug_latch,
 +                      SYNC_LEVEL_VARYING));
  
--	rw_lock_create(PFS_NOT_INSTRUMENTED, &block->lock, SYNC_LEVEL_VARYING);
+-	ut_d(block->debug_latch = (rw_lock_t *) ut_malloc_nokey(sizeof(rw_lock_t)));
 +  block->lock.is_block_lock= 1;
  
--	ut_d(rw_lock_create(PFS_NOT_INSTRUMENTED, block->debug_latch,
--			    SYNC_LEVEL_VARYING));
+-	rw_lock_create(PFS_NOT_INSTRUMENTED, &block->lock, SYNC_LEVEL_VARYING);
 +  ut_ad(rw_lock_validate(&(block->lock)));
 +}
  
+-	ut_d(rw_lock_create(PFS_NOT_INSTRUMENTED, block->debug_latch,
+-			    SYNC_LEVEL_VARYING));
++// [HYU_2018008395] BEGIN
++// PART 2 : LIST CONCAT FUNCTION
+ 
 -	block->lock.is_block_lock = 1;
++// type definition for thread argument
 +struct thread_arg_t
 +{
-+  void *func;
-+  unsigned long int thread_id;
++  void *func;                  // the actual work function
++  unsigned long int thread_id; // thread id
 +};
  
 -	ut_ad(rw_lock_validate(&(block->lock)));
++// wrapper function for pthread
 +template <typename Function> void *thread_func(void *arg)
 +{
++  // type cast thread argument
 +  thread_arg_t *args= (thread_arg_t *) arg;
 +  Function *func= (Function *) (args->func);
++  // run actual work function with thread id
 +  return (*func)(args->thread_id);
  }
++// [HYU_2018008395] END
  
  /** Allocate a chunk of buffer frames.
-@@ -1253,22 +1243,21 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
+ @param bytes    requested size
+@@ -1253,22 +1251,21 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
    if (srv_numa_interleave)
    {
      struct bitmask *numa_mems_allowed= numa_get_mems_allowed();
@@ -2117,7 +2126,7 @@ index 1c126191df3..040eed11a6f 100644
  
    /* Align a pointer to the first frame.  Note that when
    opt_large_page_size is smaller than srv_page_size,
-@@ -1276,18 +1265,18 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
+@@ -1276,18 +1273,18 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
    makes this true),
    we may allocate one fewer block than requested.  When
    it is bigger, we may allocate more blocks than requested. */
@@ -2141,12 +2150,13 @@ index 1c126191df3..040eed11a6f 100644
      {
        frame+= srv_page_size;
        s--;
-@@ -1295,19 +1284,21 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
+@@ -1295,19 +1292,22 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
  
      size= s;
    }
 -
-+#define HYU_2018008395
++#define HYU_2018008395 // I used preprocessor to select one in
++                       // original source code and my source code.
 +#ifndef HYU_2018008395
    /* Init block structs and assign frames for them. Then we assign the
    frames to the first blocks (we already mapped the memory above). */
@@ -2166,41 +2176,60 @@ index 1c126191df3..040eed11a6f 100644
      block++;
      frame+= srv_page_size;
    }
-@@ -1315,6 +1306,54 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
+@@ -1315,6 +1315,76 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
    reg();
  
    return true;
 +#endif
 +#ifdef HYU_2018008395
++  // [HYU_2018008395] BEGIN
++  // PART 3 : buffer block initialization with thread
 +  buf_block_t *block= blocks;
 +
 +  unsigned long int num_thread= sysconf(_SC_NPROCESSORS_ONLN);
-+  std::vector<pthread_t> threads(num_thread);
-+  std::vector<thread_arg_t> thread_args(num_thread);
-+  std::vector<UT_LIST_BASE_NODE_T(buf_page_t)> local_free_lists(num_thread);
 +
++  // basic setting for running threads
++  // 1. thread pool
++  std::vector<pthread_t> threads(num_thread);
++  // 2. thread arguments
++  std::vector<thread_arg_t> thread_args(num_thread);
++  // 3. thread-local free page lists
++  std::vector<UT_LIST_BASE_NODE_T(buf_page_t)> local_free_lists(num_thread);
++  // 4. actual work function
 +  auto threadwise_buf_block_init= [&](unsigned long int thread_id) {
++    // local variable for iterating frame and block
 +    auto local_frame= frame + srv_page_size * thread_id;
 +    auto local_block= block + thread_id;
++
++    // basically, this for loop is similar with original code.
++    // loop on separated work portion
++    // (with i= thread_id and i+= num_thread can do this)
 +    for (auto i= thread_id; i < size; i+= num_thread)
 +    {
++      // initialize buffer block with local block and local frame
 +      buf_block_init(local_block, local_frame);
 +      MEM_UNDEFINED(local_block->frame, srv_page_size);
-+      /* Add the local_block to the free list */
++      /* Add the local_block to the local free list */
 +      UT_LIST_ADD_LAST(local_free_lists[thread_id], &local_block->page);
 +
 +      ut_d(local_block->page.in_free_list= TRUE);
++
++      // the next block and frame are as far as num_threads.
 +      local_block+= num_thread;
 +      local_frame+= srv_page_size * num_thread;
 +    }
++    // ignore return value, I don't use it.
 +    return nullptr;
 +  };
 +
++  // run each threads
 +  for (unsigned long int i= 0; i < num_thread; i++)
 +  {
++    // initialize thread argument and thread local free page list
 +    thread_args[i].thread_id= i;
 +    thread_args[i].func= (void *) &threadwise_buf_block_init;
 +    UT_LIST_INIT(local_free_lists[i], &buf_page_t::list)
++
 +    if (pthread_create(&threads[i], nullptr,
 +                       thread_func<decltype(threadwise_buf_block_init)>,
 +                       &thread_args[i]))
@@ -2211,17 +2240,20 @@ index 1c126191df3..040eed11a6f 100644
 +
 +  for (unsigned long int i= 0; i < num_thread; i++)
 +  {
++    // wait for each threads.
 +    pthread_join(threads[i], nullptr);
++    // concat its local free page list to buffer pool's free page list
 +    UT_LIST_CONCAT(buf_pool.free, local_free_lists[i]);
 +  }
 +
 +  reg();
 +  return true;
++  // [HYU_2018008395] END
 +#endif
  }
  
  #ifdef UNIV_DEBUG
-@@ -1326,7 +1365,8 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
+@@ -1326,7 +1396,8 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
    buf_block_t *block= blocks;
    for (auto i= size; i--; block++)
    {
@@ -2231,7 +2263,7 @@ index 1c126191df3..040eed11a6f 100644
      case BUF_BLOCK_ZIP_PAGE:
        /* The uncompressed buffer pool should never
        contain ROW_FORMAT=COMPRESSED block descriptors. */
-@@ -1370,11 +1410,11 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
+@@ -1370,11 +1441,11 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
  
  /** Free the synchronization objects of a buffer pool block descriptor
  @param[in,out]	block	buffer pool block descriptor */
@@ -2247,7 +2279,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  
  /** Create the hash table.
-@@ -1383,9 +1423,9 @@ void buf_pool_t::page_hash_table::create(ulint n)
+@@ -1383,9 +1454,9 @@ void buf_pool_t::page_hash_table::create(ulint n)
  {
    n_cells= ut_find_prime(n);
    const size_t size= pad(n_cells) * sizeof *array;
@@ -2259,7 +2291,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  
  /** Create the buffer pool.
-@@ -1403,19 +1443,19 @@ bool buf_pool_t::create()
+@@ -1403,19 +1474,19 @@ bool buf_pool_t::create()
    NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
  
    if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
@@ -2283,7 +2315,7 @@ index 1c126191df3..040eed11a6f 100644
    UT_LIST_INIT(free, &buf_page_t::list);
    curr_size= 0;
    auto chunk= chunks;
-@@ -1426,7 +1466,7 @@ bool buf_pool_t::create()
+@@ -1426,7 +1497,7 @@ bool buf_pool_t::create()
      {
        while (--chunk >= chunks)
        {
@@ -2292,7 +2324,7 @@ index 1c126191df3..040eed11a6f 100644
  
          for (auto i= chunk->size; i--; block++)
            buf_block_free_mutexes(block);
-@@ -1437,15 +1477,14 @@ bool buf_pool_t::create()
+@@ -1437,15 +1508,14 @@ bool buf_pool_t::create()
        chunks= nullptr;
        UT_DELETE(chunk_t::map_reg);
        chunk_t::map_reg= nullptr;
@@ -2310,7 +2342,7 @@ index 1c126191df3..040eed11a6f 100644
  
    ut_ad(is_initialised());
    mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
-@@ -1462,8 +1501,8 @@ bool buf_pool_t::create()
+@@ -1462,8 +1532,8 @@ bool buf_pool_t::create()
    old_size= s;
    s/= BUF_READ_AHEAD_PORTION;
    read_ahead_area= s >= READ_AHEAD_PAGES
@@ -2321,7 +2353,7 @@ index 1c126191df3..040eed11a6f 100644
    curr_pool_size= srv_buf_pool_size;
  
    n_chunks_new= n_chunks;
-@@ -1522,16 +1561,16 @@ void buf_pool_t::close()
+@@ -1522,16 +1592,16 @@ void buf_pool_t::close()
      /* The buffer pool must be clean during normal shutdown.
      Only on aborted startup (with recovery) or with innodb_fast_shutdown=2
      we may discard changes. */
@@ -2343,7 +2375,7 @@ index 1c126191df3..040eed11a6f 100644
    {
      buf_block_t *block= chunk->blocks;
  
-@@ -1554,7 +1593,7 @@ void buf_pool_t::close()
+@@ -1554,7 +1624,7 @@ void buf_pool_t::close()
    io_buf.close();
    UT_DELETE(chunk_t::map_reg);
    chunk_t::map_reg= chunk_t::map_ref= nullptr;
@@ -2352,7 +2384,7 @@ index 1c126191df3..040eed11a6f 100644
    field_ref_zero= nullptr;
  }
  
-@@ -1563,306 +1602,305 @@ void buf_pool_t::close()
+@@ -1563,306 +1633,305 @@ void buf_pool_t::close()
  @return whether the reallocation succeeded */
  inline bool buf_pool_t::realloc(buf_block_t *block)
  {
@@ -2764,10 +2796,10 @@ index 1c126191df3..040eed11a6f 100644
 +
 +  while (UT_LIST_GET_LEN(withdraw) < withdraw_target)
 +  {
- 
++
 +    /* try to withdraw from free_list */
 +    ulint count1= 0;
- 
++
 +    mysql_mutex_lock(&mutex);
 +    block= reinterpret_cast<buf_block_t *>(UT_LIST_GET_FIRST(free));
 +    while (block != NULL && UT_LIST_GET_LEN(withdraw) < withdraw_target)
@@ -2800,7 +2832,7 @@ index 1c126191df3..040eed11a6f 100644
 +      ulint n_flushed= buf_flush_LRU(std::max<ulint>(
 +          withdraw_target - UT_LIST_GET_LEN(withdraw), srv_LRU_scan_depth));
 +      buf_flush_wait_batch_end_acquiring_mutex(true);
-+
+ 
 +      if (n_flushed)
 +      {
 +        MONITOR_INC_VALUE_CUMULATIVE(MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE,
@@ -2811,7 +2843,7 @@ index 1c126191df3..040eed11a6f 100644
 +
 +    /* relocate blocks/buddies in withdrawn area */
 +    ulint count2= 0;
-+
+ 
 +    mysql_mutex_lock(&mutex);
 +    buf_page_t *bpage;
 +    bpage= UT_LIST_GET_FIRST(LRU);
@@ -2919,7 +2951,7 @@ index 1c126191df3..040eed11a6f 100644
  namespace
  {
  
-@@ -1903,352 +1941,375 @@ inline void buf_pool_t::resize()
+@@ -1903,352 +1972,375 @@ inline void buf_pool_t::resize()
  {
    ut_ad(this == &buf_pool);
  
@@ -3041,22 +3073,36 @@ index 1c126191df3..040eed11a6f 100644
 -		&& withdraw_blocks();
 +  /* wait for the number of blocks fit to the new size (if needed)*/
 +  bool should_retry_withdraw= curr_size < old_size && withdraw_blocks();
-+
+ 
+-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+-		/* abort to resize for shutdown. */
+-		return;
+-	}
 +  if (srv_shutdown_state != SRV_SHUTDOWN_NONE)
 +  {
 +    /* abort to resize for shutdown. */
 +    return;
 +  }
-+
+ 
+-	/* abort buffer pool load */
+-	buf_load_abort();
 +  /* abort buffer pool load */
 +  buf_load_abort();
-+
+ 
+-	const time_t current_time = time(NULL);
 +  const time_t current_time= time(NULL);
-+
+ 
+-	if (should_retry_withdraw
+-	    && difftime(current_time, withdraw_started) >= message_interval) {
 +  if (should_retry_withdraw &&
 +      difftime(current_time, withdraw_started) >= message_interval)
 +  {
-+
+ 
+-		if (message_interval > 900) {
+-			message_interval = 1800;
+-		} else {
+-			message_interval *= 2;
+-		}
 +    if (message_interval > 900)
 +    {
 +      message_interval= 1800;
@@ -3065,13 +3111,20 @@ index 1c126191df3..040eed11a6f 100644
 +    {
 +      message_interval*= 2;
 +    }
-+
+ 
+-		lock_mutex_enter();
+-		bool	found = false;
+-		trx_sys.trx_list.for_each(find_interesting_trx{
+-			found, withdraw_started, current_time});
+-		lock_mutex_exit();
 +    lock_mutex_enter();
 +    bool found= false;
 +    trx_sys.trx_list.for_each(
 +        find_interesting_trx{found, withdraw_started, current_time});
 +    lock_mutex_exit();
-+
+ 
+-		withdraw_started = current_time;
+-	}
 +    withdraw_started= current_time;
 +  }
 +
@@ -3119,7 +3172,11 @@ index 1c126191df3..040eed11a6f 100644
 +
 +  mysql_mutex_lock(&mutex);
 +  page_hash.write_lock_all();
-+
+ 
+-	if (should_retry_withdraw) {
+-		ib::info() << "Will retry to withdraw " << retry_interval
+-			<< " seconds later.";
+-		os_thread_sleep(retry_interval * 1000000);
 +  chunk_t::map_reg= UT_NEW_NOKEY(chunk_t::map());
 +
 +  /* add/delete chunks */
@@ -3135,11 +3192,7 @@ index 1c126191df3..040eed11a6f 100644
 +    const chunk_t *const echunk= chunks + n_chunks;
 +
 +    ulint sum_freed= 0;
- 
--	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
--		/* abort to resize for shutdown. */
--		return;
--	}
++
 +    while (chunk < echunk)
 +    {
 +      /* buf_LRU_block_free_non_file_page() invokes
@@ -3161,53 +3214,32 @@ index 1c126191df3..040eed11a6f 100644
 +      {
 +        buf_block_free_mutexes(block);
 +      }
- 
--	/* abort buffer pool load */
--	buf_load_abort();
++
 +      allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
 +      sum_freed+= chunk->size;
 +      ++chunk;
 +    }
- 
--	const time_t current_time = time(NULL);
++
 +    /* discard withdraw list */
 +    UT_LIST_INIT(withdraw, &buf_page_t::list);
 +    withdraw_target= 0;
- 
--	if (should_retry_withdraw
--	    && difftime(current_time, withdraw_started) >= message_interval) {
++
 +    ib::info() << n_chunks - n_chunks_new << " chunks (" << sum_freed
 +               << " blocks) were freed.";
- 
--		if (message_interval > 900) {
--			message_interval = 1800;
--		} else {
--			message_interval *= 2;
--		}
++
 +    n_chunks= n_chunks_new;
 +  }
- 
--		lock_mutex_enter();
--		bool	found = false;
--		trx_sys.trx_list.for_each(find_interesting_trx{
--			found, withdraw_started, current_time});
--		lock_mutex_exit();
++
 +  {
 +    /* reallocate chunks */
 +    const size_t new_chunks_size= n_chunks_new * sizeof(chunk_t);
 +
 +    chunk_t *new_chunks=
 +        static_cast<chunk_t *>(ut_zalloc_nokey_nofatal(new_chunks_size));
- 
--		withdraw_started = current_time;
--	}
++
 +    DBUG_EXECUTE_IF("buf_pool_resize_chunk_null", ut_free(new_chunks);
 +                    new_chunks= nullptr;);
- 
--	if (should_retry_withdraw) {
--		ib::info() << "Will retry to withdraw " << retry_interval
--			<< " seconds later.";
--		os_thread_sleep(retry_interval * 1000000);
++
 +    if (!new_chunks)
 +    {
 +      ib::error() << "failed to allocate"
@@ -3571,7 +3603,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  
  /** Thread pool task invoked by innodb_buffer_pool_size changes. */
-@@ -2272,21 +2333,15 @@ static void buf_resize_callback(void *)
+@@ -2272,21 +2364,15 @@ static void buf_resize_callback(void *)
    DBUG_VOID_RETURN;
  }
  
@@ -3599,7 +3631,7 @@ index 1c126191df3..040eed11a6f 100644
  
  /** Relocate a ROW_FORMAT=COMPRESSED block in the LRU list and
  buf_pool.page_hash.
-@@ -2375,7 +2430,7 @@ inline buf_page_t *buf_pool_t::watch_set(const page_id_t id,
+@@ -2375,7 +2461,7 @@ inline buf_page_t *buf_pool_t::watch_set(const page_id_t id,
    /* The maximum number of purge tasks should never exceed
    the UT_ARR_SIZE(watch) - 1, and there is no way for a purge task to hold a
    watch when setting another watch. */
@@ -3608,7 +3640,7 @@ index 1c126191df3..040eed11a6f 100644
    {
      ut_ad(w->access_time == 0);
      ut_ad(!w->oldest_modification());
-@@ -2478,15 +2533,15 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr,
+@@ -2478,15 +2564,15 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr,
  #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
        || space->is_compressed()
  #endif
@@ -3627,7 +3659,7 @@ index 1c126191df3..040eed11a6f 100644
    {
      if (block->page.state() != BUF_BLOCK_FILE_PAGE)
        /* FIXME: convert, but avoid buf_zip_decompress() */;
-@@ -2518,7 +2573,7 @@ the same set of mutexes or latches.
+@@ -2518,7 +2604,7 @@ the same set of mutexes or latches.
  @param[in]	page_id		page id
  @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size
  @return pointer to the block */
@@ -3636,7 +3668,7 @@ index 1c126191df3..040eed11a6f 100644
  {
    ut_ad(zip_size);
    ut_ad(ut_is_2pow(zip_size));
-@@ -2531,7 +2586,7 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
+@@ -2531,7 +2617,7 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
  
    for (;;)
    {
@@ -3645,7 +3677,7 @@ index 1c126191df3..040eed11a6f 100644
      bpage= buf_pool.page_hash_get_locked<false>(page_id, fold, &hash_lock);
      if (bpage)
        break;
-@@ -2546,7 +2601,8 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
+@@ -2546,7 +2632,8 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
      }
  
  #ifdef UNIV_DEBUG
@@ -3655,7 +3687,7 @@ index 1c126191df3..040eed11a6f 100644
  #endif /* UNIV_DEBUG */
    }
  
-@@ -2555,14 +2611,15 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
+@@ -2555,14 +2642,15 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
    if (!bpage->zip.data)
    {
      /* There is no compressed page. */
@@ -3673,7 +3705,7 @@ index 1c126191df3..040eed11a6f 100644
    case BUF_BLOCK_ZIP_PAGE:
      bpage->fix();
      goto got_block;
-@@ -2579,8 +2636,8 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
+@@ -2579,8 +2667,8 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
        goto lookup;
      }
  
@@ -3684,7 +3716,7 @@ index 1c126191df3..040eed11a6f 100644
      goto got_block;
    default:
      break;
-@@ -2599,7 +2656,8 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
+@@ -2599,7 +2687,8 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
    buf_page_make_young_if_needed(bpage);
  
  #ifdef UNIV_DEBUG
@@ -3694,7 +3726,7 @@ index 1c126191df3..040eed11a6f 100644
  #endif /* UNIV_DEBUG */
    ut_ad(bpage->buf_fix_count());
    ut_ad(bpage->in_file());
-@@ -2612,145 +2670,145 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
+@@ -2612,145 +2701,145 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
    return bpage;
  }
  
@@ -3965,7 +3997,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  
  #ifdef BTR_CUR_HASH_ADAPT
-@@ -2760,7 +2818,8 @@ same block must be prevented by exclusive page latch. */
+@@ -2760,7 +2849,8 @@ same block must be prevented by exclusive page latch. */
  ATTRIBUTE_COLD
  static void buf_defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
  {
@@ -3975,7 +4007,7 @@ index 1c126191df3..040eed11a6f 100644
    case MTR_MEMO_BUF_FIX:
      /* We do not drop the adaptive hash index, because safely doing
      so would require acquiring block->lock, and that is not safe
-@@ -2800,10 +2859,8 @@ static void buf_defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
+@@ -2800,10 +2890,8 @@ static void buf_defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
  @param[in]	file		file name
  @param[in]	line		line where called
  @return pointer to locked block */
@@ -3988,7 +4020,7 @@ index 1c126191df3..040eed11a6f 100644
                                        unsigned line)
  {
    mtr_memo_type_t fix_type;
-@@ -2856,553 +2913,597 @@ while reading the page from file
+@@ -2856,553 +2944,597 @@ while reading the page from file
  then it makes sure that it does merging of change buffer changes while
  reading the page from file.
  @return pointer to the block or NULL */
@@ -5083,7 +5115,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  
  /** Get access to a database page. Buffered redo log may be applied.
-@@ -3419,18 +3520,10 @@ BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
+@@ -3419,18 +3551,10 @@ BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
  @param[in]	allow_ibuf_merge	Allow change buffer merge while
  reading the pages from file.
  @return pointer to the block or NULL */
@@ -5106,7 +5138,7 @@ index 1c126191df3..040eed11a6f 100644
  {
    if (buf_block_t *block= recv_sys.recover(page_id))
    {
-@@ -3438,12 +3531,12 @@ buf_page_get_gen(
+@@ -3438,12 +3562,12 @@ buf_page_get_gen(
      ut_ad(rw_lock_s_lock_nowait(block->debug_latch, file, line));
      if (err)
        *err= DB_SUCCESS;
@@ -5122,7 +5154,7 @@ index 1c126191df3..040eed11a6f 100644
      {
        rw_lock_x_lock_inline(&block->lock, 0, file, line);
        block->page.ibuf_exist= false;
-@@ -3452,7 +3545,7 @@ buf_page_get_gen(
+@@ -3452,7 +3576,7 @@ buf_page_get_gen(
        if (rw_latch == RW_X_LATCH)
        {
          mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
@@ -5131,7 +5163,7 @@ index 1c126191df3..040eed11a6f 100644
        }
        rw_lock_x_unlock(&block->lock);
      }
-@@ -3460,100 +3553,109 @@ buf_page_get_gen(
+@@ -3460,100 +3584,109 @@ buf_page_get_gen(
      return block;
    }
  
@@ -5309,7 +5341,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  
  /** Given a tablespace id and page number tries to get that page. If the
-@@ -3564,20 +3666,15 @@ Suitable for using when holding the lock_sys_t::mutex.
+@@ -3564,20 +3697,15 @@ Suitable for using when holding the lock_sys_t::mutex.
  @param[in]	line	line where called
  @param[in]	mtr	mini-transaction
  @return pointer to a page or NULL */
@@ -5334,7 +5366,7 @@ index 1c126191df3..040eed11a6f 100644
    if (!bpage)
      return nullptr;
    if (bpage->state() != BUF_BLOCK_FILE_PAGE)
-@@ -3586,7 +3683,7 @@ buf_page_try_get_func(
+@@ -3586,7 +3714,7 @@ buf_page_try_get_func(
      return nullptr;
    }
  
@@ -5343,7 +5375,7 @@ index 1c126191df3..040eed11a6f 100644
    buf_block_buf_fix_inc(block, file, line);
    hash_lock->read_unlock();
  
-@@ -3606,7 +3703,8 @@ buf_page_try_get_func(
+@@ -3606,7 +3734,8 @@ buf_page_try_get_func(
    mtr_memo_push(mtr, block, fix_type);
  
  #ifdef UNIV_DEBUG
@@ -5353,7 +5385,7 @@ index 1c126191df3..040eed11a6f 100644
  #endif /* UNIV_DEBUG */
    ut_ad(bpage->buf_fix_count());
    ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
-@@ -3640,9 +3738,9 @@ FILE_PAGE (the other is buf_page_get_gen).
+@@ -3640,9 +3769,9 @@ FILE_PAGE (the other is buf_page_get_gen).
  @param[in,out]	mtr		mini-transaction
  @param[in,out]	free_block	pre-allocated buffer block
  @return pointer to the block, page bufferfixed */
@@ -5366,7 +5398,7 @@ index 1c126191df3..040eed11a6f 100644
  {
    page_id_t page_id(space->id, offset);
    ut_ad(mtr->is_active());
-@@ -3655,8 +3753,8 @@ buf_page_create(fil_space_t *space, uint32_t offset,
+@@ -3655,8 +3784,8 @@ buf_page_create(fil_space_t *space, uint32_t offset,
    mysql_mutex_lock(&buf_pool.mutex);
  
  loop:
@@ -5377,7 +5409,7 @@ index 1c126191df3..040eed11a6f 100644
  
    if (block && block->page.in_file() &&
        !buf_pool.watch_is_sentinel(block->page))
-@@ -3664,7 +3762,8 @@ buf_page_create(fil_space_t *space, uint32_t offset,
+@@ -3664,7 +3793,8 @@ buf_page_create(fil_space_t *space, uint32_t offset,
  #ifdef BTR_CUR_HASH_ADAPT
      const dict_index_t *drop_hash_entry= nullptr;
  #endif
@@ -5387,7 +5419,7 @@ index 1c126191df3..040eed11a6f 100644
      default:
        ut_ad(0);
        break;
-@@ -3743,8 +3842,8 @@ buf_page_create(fil_space_t *space, uint32_t offset,
+@@ -3743,8 +3873,8 @@ buf_page_create(fil_space_t *space, uint32_t offset,
  
    /* If we get here, the page was not in buf_pool: init it there */
  
@@ -5398,7 +5430,7 @@ index 1c126191df3..040eed11a6f 100644
  
    block= free_block;
  
-@@ -3796,8 +3895,7 @@ buf_page_create(fil_space_t *space, uint32_t offset,
+@@ -3796,8 +3926,7 @@ buf_page_create(fil_space_t *space, uint32_t offset,
    /* Delete possible entries for the page from the insert buffer:
    such can exist if the page belonged to an index which was dropped */
    if (page_id < page_id_t{SRV_SPACE_ID_UPPER_BOUND, 0} &&
@@ -5408,7 +5440,7 @@ index 1c126191df3..040eed11a6f 100644
      ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size);
  
    static_assert(FIL_PAGE_PREV + 4 == FIL_PAGE_NEXT, "adjacent");
-@@ -3814,7 +3912,8 @@ buf_page_create(fil_space_t *space, uint32_t offset,
+@@ -3814,7 +3943,8 @@ buf_page_create(fil_space_t *space, uint32_t offset,
    memset_aligned<8>(block->frame + FIL_PAGE_LSN, 0, 8);
  
  #ifdef UNIV_DEBUG
@@ -5418,7 +5450,7 @@ index 1c126191df3..040eed11a6f 100644
  #endif /* UNIV_DEBUG */
    return block;
  }
-@@ -3823,116 +3922,119 @@ buf_page_create(fil_space_t *space, uint32_t offset,
+@@ -3823,116 +3953,119 @@ buf_page_create(fil_space_t *space, uint32_t offset,
  counter value in MONITOR_MODULE_BUF_PAGE.
  @param bpage   buffer page whose read or write was completed
  @param io_type BUF_IO_READ or BUF_IO_WRITE */
@@ -5640,7 +5672,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  
  /** Release and evict a corrupted page.
-@@ -3950,7 +4052,7 @@ ATTRIBUTE_COLD void buf_pool_t::corrupted_evict(buf_page_t *bpage)
+@@ -3950,7 +4083,7 @@ ATTRIBUTE_COLD void buf_pool_t::corrupted_evict(buf_page_t *bpage)
    bpage->set_corrupt_id();
  
    if (bpage->state() == BUF_BLOCK_FILE_PAGE)
@@ -5649,7 +5681,7 @@ index 1c126191df3..040eed11a6f 100644
                           BUF_IO_READ);
  
    bpage->io_unfix();
-@@ -3982,7 +4084,7 @@ static void buf_corrupt_page_release(buf_page_t *bpage, const fil_node_t &node)
+@@ -3982,7 +4115,7 @@ static void buf_corrupt_page_release(buf_page_t *bpage, const fil_node_t &node)
  @param[in]	d		page
  @param[in]	is_compressed	compressed page
  @return true if page is corrupted or false if it isn't */
@@ -5658,7 +5690,7 @@ index 1c126191df3..040eed11a6f 100644
                                               bool is_compressed)
  {
    if (space_id != mach_read_from_4(d + FIL_PAGE_SPACE_ID))
-@@ -3992,8 +4094,8 @@ static bool buf_page_full_crc32_is_corrupted(ulint space_id, const byte* d,
+@@ -3992,8 +4125,8 @@ static bool buf_page_full_crc32_is_corrupted(ulint space_id, const byte* d,
    static_assert(FIL_PAGE_FCRC32_END_LSN % 4 == 0, "alignment");
  
    return !is_compressed &&
@@ -5669,7 +5701,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  
  /** Check if page is maybe compressed, encrypted or both when we encounter
-@@ -4010,67 +4112,66 @@ after decryption normal page checksum does not match.
+@@ -4010,67 +4143,66 @@ after decryption normal page checksum does not match.
  static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
                                        const fil_node_t &node)
  {
@@ -5797,7 +5829,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  
  /** Complete a read request of a file page to buf_pool.
-@@ -4099,8 +4200,8 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
+@@ -4099,8 +4231,8 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
    ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE || bpage->zip.data);
  
    const byte *frame= bpage->zip.data
@@ -5808,7 +5840,7 @@ index 1c126191df3..040eed11a6f 100644
    ut_ad(frame);
  
    dberr_t err;
-@@ -4113,7 +4214,7 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
+@@ -4113,7 +4245,7 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
    if (bpage->zip.data && bpage->state() == BUF_BLOCK_FILE_PAGE)
    {
      buf_pool.n_pend_unzip++;
@@ -5817,7 +5849,7 @@ index 1c126191df3..040eed11a6f 100644
      buf_pool.n_pend_unzip--;
  
      if (!ok)
-@@ -4128,16 +4229,18 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
+@@ -4128,16 +4260,18 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
      const page_id_t read_id(mach_read_from_4(frame + FIL_PAGE_SPACE_ID),
                              mach_read_from_4(frame + FIL_PAGE_OFFSET));
  
@@ -5840,7 +5872,7 @@ index 1c126191df3..040eed11a6f 100644
               node.space->crypt_data &&
               node.space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED)
      {
-@@ -4153,20 +4256,19 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
+@@ -4153,20 +4287,19 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
    err= buf_page_check_corrupt(bpage, node);
    if (UNIV_UNLIKELY(err != DB_SUCCESS))
    {
@@ -5871,7 +5903,7 @@ index 1c126191df3..040eed11a6f 100644
  
      if (err == DB_PAGE_CORRUPTED)
      {
-@@ -4193,12 +4295,12 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
+@@ -4193,12 +4326,12 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
      }
    }
  
@@ -5887,7 +5919,7 @@ index 1c126191df3..040eed11a6f 100644
      buf_corrupt_page_release(bpage, node);
      if (recv_recovery_is_on())
        recv_sys.free_corrupted_page(id);
-@@ -4210,20 +4312,18 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
+@@ -4210,20 +4343,18 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
  
    if (bpage->state() == BUF_BLOCK_FILE_PAGE && !recv_no_ibuf_operations &&
        (!id.space() || !is_predefined_tablespace(id.space())) &&
@@ -5911,7 +5943,7 @@ index 1c126191df3..040eed11a6f 100644
    bpage->io_unfix();
  
    ut_d(auto n=) buf_pool.n_pend_reads--;
-@@ -4242,7 +4342,7 @@ void buf_pool_t::assert_all_freed()
+@@ -4242,7 +4373,7 @@ void buf_pool_t::assert_all_freed()
    mysql_mutex_lock(&mutex);
    const chunk_t *chunk= chunks;
    for (auto i= n_chunks; i--; chunk++)
@@ -5920,7 +5952,7 @@ index 1c126191df3..040eed11a6f 100644
        ib::fatal() << "Page " << block->page.id() << " still fixed or dirty";
    mysql_mutex_unlock(&mutex);
  }
-@@ -4251,142 +4351,144 @@ void buf_pool_t::assert_all_freed()
+@@ -4251,142 +4382,144 @@ void buf_pool_t::assert_all_freed()
  /** Refresh the statistics used to print per-second averages. */
  void buf_refresh_io_stats()
  {
@@ -6182,7 +6214,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  #endif /* UNIV_DEBUG */
  
-@@ -4394,104 +4496,110 @@ void buf_pool_t::validate()
+@@ -4394,104 +4527,110 @@ void buf_pool_t::validate()
  /** Write information of the buf_pool to the error log. */
  void buf_pool_t::print()
  {
@@ -6391,7 +6423,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  #endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG */
  
-@@ -4518,230 +4626,213 @@ ulint buf_get_latched_pages_number()
+@@ -4518,230 +4657,213 @@ ulint buf_get_latched_pages_number()
  @param[out]	pool_info	buffer pool metadata */
  void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
  {
@@ -6786,7 +6818,7 @@ index 1c126191df3..040eed11a6f 100644
  }
  
  /** Verify that post encryption checksum match with the calculated checksum.
-@@ -4749,21 +4840,22 @@ This function should be called only if tablespace contains crypt data metadata.
+@@ -4749,21 +4871,22 @@ This function should be called only if tablespace contains crypt data metadata.
  @param[in]	page		page frame
  @param[in]	fsp_flags	tablespace flags
  @return true if true if page is encrypted and OK, false otherwise */
@@ -6817,7 +6849,7 @@ index 1c126191df3..040eed11a6f 100644
    out << "[page id: space=" << page_id.space()
        << ", page number=" << page_id.page_no() << "]";
 diff --git storage/innobase/include/ut0lst.h storage/innobase/include/ut0lst.h
-index 9a5f3059826..c47b67d7fe6 100644
+index 9a5f3059826..7a2472ab3b5 100644
 --- storage/innobase/include/ut0lst.h
 +++ storage/innobase/include/ut0lst.h
 @@ -17,13 +17,13 @@ this program; if not, write to the Free Software Foundation, Inc.,
@@ -6840,7 +6872,7 @@ index 9a5f3059826..c47b67d7fe6 100644
  
  #ifndef ut0lst_h
  #define ut0lst_h
-@@ -36,530 +36,561 @@ Rewritten by Sunny Bains Dec 2011.
+@@ -36,530 +36,571 @@ Rewritten by Sunny Bains Dec 2011.
  list node may belong to two or more lists, but is only on one list
  at a time. */
  
@@ -7171,24 +7203,27 @@ index 9a5f3059826..c47b67d7fe6 100644
 + @param ELEM the element to add */
 +#define UT_LIST_ADD_LAST(LIST, ELEM) ut_list_append(LIST, ELEM)
 +
++// [HYU_2018008395] BEGIN
++// PART 1 : LIST CONCAT FUNCTION
 +/*******************************************************************/ /**
-+ Adds the node as the last element in a two-way linked list.
++ connect list2 at the end of list1
 + @param list1 list
 + @param list2 the list to concat
-+ @param get_node to get the list1's node for that element */
++ @param get_node to get the list1 and list2's node for that element */
 +template <typename List, typename Functor>
 +void ut_list_concat(List &list1, List &list2, Functor get_node)
 +{
++  // check if list1 and list2 are initialized.
 +  UT_LIST_IS_INITIALISED(list1);
 +  UT_LIST_IS_INITIALISED(list2);
 +
++  // if list2 is empty, do nothing
 +  if (list2.count == 0)
 +  {
 +    return;
 +  }
 +
-+  typename List::node_type &start_of_list2= get_node(*list2.start);
-+
++  // if list1 is empty, just copy list2
 +  if (list1.count == 0)
 +  {
 +    list1.start= list2.start;
@@ -7197,16 +7232,22 @@ index 9a5f3059826..c47b67d7fe6 100644
 +    return;
 +  }
 +
++  typename List::node_type &start_of_list2= get_node(*list2.start);
 +  typename List::node_type &end_of_list1= get_node(*list1.end);
++
++  // connect list2's start and list1's end
 +  start_of_list2.prev= list1.end;
 +  end_of_list1.next= list2.start;
++
++  // now, list1's end is list2's end.
 +  list1.end= list2.end;
 +
++  // list1's size is increased by list2's size.
 +  list1.count+= list2.count;
 +}
 +
 +/*******************************************************************/ /**
-+ concat two separate list
++ concat two separate linked list
 + @param list1 list
 + @param list2 the list to concat */
 +template <typename List> void ut_list_concat(List &list1, List &list2)
@@ -7234,6 +7275,7 @@ index 9a5f3059826..c47b67d7fe6 100644
 + @param LIST1 first list
 + @param LIST2 the list to concat */
 +#define UT_LIST_CONCAT(LIST1, LIST2) ut_list_concat(LIST1, LIST2)
++// [HYU_2018008395] END
 +
 +/*******************************************************************/ /**
 + Inserts a ELEM2 after ELEM1 in a list.
@@ -7777,7 +7819,7 @@ index 9a5f3059826..c47b67d7fe6 100644
  
  #ifdef UNIV_DEBUG
 diff --git storage/innobase/srv/srv0start.cc storage/innobase/srv/srv0start.cc
-index aa6e7ce11f9..ab133a322f3 100644
+index aa6e7ce11f9..14ce7b308aa 100644
 --- storage/innobase/srv/srv0start.cc
 +++ storage/innobase/srv/srv0start.cc
 @@ -32,12 +32,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
@@ -8990,7 +9032,7 @@ index aa6e7ce11f9..ab133a322f3 100644
  }
  
  /** Tries to locate LOG_FILE_NAME and check it's size, etc
-@@ -1050,1119 +1077,1194 @@ static dberr_t find_and_check_log_file(bool &log_file_found)
+@@ -1050,1119 +1077,1199 @@ static dberr_t find_and_check_log_file(bool &log_file_found)
  @return DB_SUCCESS or error code */
  dberr_t srv_start(bool create_new_db)
  {
@@ -10154,6 +10196,11 @@ index aa6e7ce11f9..ab133a322f3 100644
 -	and closing the data dictionary.  */
 +  ib::info() << "Initializing buffer pool, total size = " << srv_buf_pool_size
 +             << ", chunk size = " << srv_buf_pool_chunk_unit;
++  // [HYU_2018008395] BEGIN
++  // PART 4 : measure buffer pool initialization time
++  // I used TA's method. thank you.
++  std::chrono::milliseconds start_time;
++  std::chrono::milliseconds end_time;
  
 -#ifdef BTR_CUR_HASH_ADAPT
 -	if (dict_sys.is_initialised()) {
@@ -10193,14 +10240,16 @@ index aa6e7ce11f9..ab133a322f3 100644
 -		srv_tmp_space.delete_files();
 -	}
 -	srv_tmp_space.shutdown();
-+  std::chrono::milliseconds start_time;
-+  std::chrono::milliseconds end_time;
++  // measure start time before buffer initialization
++  start_time= std::chrono::duration_cast<std::chrono::milliseconds>(
++      std::chrono::system_clock::now().time_since_epoch());
  
 -#ifdef WITH_INNODB_DISALLOW_WRITES
 -	os_event_destroy(srv_allow_writes_event);
 -#endif /* WITH_INNODB_DISALLOW_WRITES */
-+  start_time= std::chrono::duration_cast<std::chrono::milliseconds>(
-+      std::chrono::system_clock::now().time_since_epoch());
++  if (buf_pool.create())
++  {
++    ib::error() << "Cannot allocate memory for the buffer pool";
  
 -	if (srv_was_started && srv_print_verbose_log) {
 -		ib::info() << "Shutdown completed; log sequence number "
@@ -10212,9 +10261,22 @@ index aa6e7ce11f9..ab133a322f3 100644
 -	srv_was_started = false;
 -	srv_start_has_been_called = false;
 -}
-+  if (buf_pool.create())
-+  {
-+    ib::error() << "Cannot allocate memory for the buffer pool";
++    return (srv_init_abort(DB_ERROR));
++  }
++  // measure end time after buffer initialization
++  end_time= std::chrono::duration_cast<std::chrono::milliseconds>(
++      std::chrono::system_clock::now().time_since_epoch());
++  // calculate total buffer initialization time
++  auto buf_init_time= std::chrono::duration_cast<std::chrono::milliseconds>(
++                          end_time - start_time)
++                          .count();
++  // print out it.
++  ib::info() << "[HYU] Buffer Pool Initialization Time: " << buf_init_time;
++  ib::info() << "Completed initialization of buffer pool";
++  // [HYU_2018008395] END
++#ifdef UNIV_DEBUG
++  /* We have observed deadlocks with a 5MB buffer pool but
++  the actual lower limit could very well be a little higher. */
  
 -/** Get the meta-data filename from the table name for a
 -single-table tablespace.
@@ -10229,25 +10291,6 @@ index aa6e7ce11f9..ab133a322f3 100644
 -{
 -	ulint		len;
 -	char*		path;
-+    return (srv_init_abort(DB_ERROR));
-+  }
- 
--	/* Make sure the data_dir_path is set. */
--	dict_get_and_save_data_dir_path(table, false);
-+  end_time= std::chrono::duration_cast<std::chrono::milliseconds>(
-+      std::chrono::system_clock::now().time_since_epoch());
-+  auto buf_init_time= std::chrono::duration_cast<std::chrono::milliseconds>(
-+                          end_time - start_time)
-+                          .count();
-+  ib::info() << "[HYU] Buffer Pool Initialization Time: " << buf_init_time;
-+  ib::info() << "Completed initialization of buffer pool";
- 
--	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
--		ut_a(table->data_dir_path);
-+#ifdef UNIV_DEBUG
-+  /* We have observed deadlocks with a 5MB buffer pool but
-+  the actual lower limit could very well be a little higher. */
-+
 +  if (srv_buf_pool_size <= 5 * 1024 * 1024)
 +  {
 +
@@ -10256,24 +10299,28 @@ index aa6e7ce11f9..ab133a322f3 100644
 +               << " deadlock if the buffer pool fills up.";
 +  }
 +#endif /* UNIV_DEBUG */
++
++  log_sys.create();
++  recv_sys.create();
++  lock_sys.create(srv_lock_table_size);
+ 
+-	/* Make sure the data_dir_path is set. */
+-	dict_get_and_save_data_dir_path(table, false);
++  if (!srv_read_only_mode)
++  {
++    buf_flush_page_cleaner_init();
++    ut_ad(buf_page_cleaner_is_active);
++  }
+ 
+-	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
+-		ut_a(table->data_dir_path);
++  srv_startup_is_before_trx_rollback_phase= !create_new_db;
  
 -		path = fil_make_filepath(
 -			table->data_dir_path, table->name.m_name, CFG, true);
 -	} else {
 -		path = fil_make_filepath(NULL, table->name.m_name, CFG, false);
 -	}
-+  log_sys.create();
-+  recv_sys.create();
-+  lock_sys.create(srv_lock_table_size);
-+
-+  if (!srv_read_only_mode)
-+  {
-+    buf_flush_page_cleaner_init();
-+    ut_ad(buf_page_cleaner_is_active);
-+  }
-+
-+  srv_startup_is_before_trx_rollback_phase= !create_new_db;
-+
 +  /* Check if undo tablespaces and redo log files exist before creating
 +  a new system tablespace */
 +  if (create_new_db)
